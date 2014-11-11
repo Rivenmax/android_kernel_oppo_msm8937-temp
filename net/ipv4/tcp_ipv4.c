@@ -1710,6 +1710,7 @@ process:
 	iph = ip_hdr(skb);
 
 	sk_mark_napi_id(sk, skb);
+	sk_incoming_cpu_update(sk);
 	skb->dev = NULL;
 
 	bh_lock_sock_nested(sk);
