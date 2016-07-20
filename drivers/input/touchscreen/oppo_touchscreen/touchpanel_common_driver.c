@@ -314,6 +314,11 @@ static void tp_touch_handle(struct touchpanel_data *ts)
 
     memset(points, 0, sizeof(points));
 
+    input_event(ts->input_dev, EV_SYN, SYN_TIME_SEC,
+                ktime_to_timespec(ts->timestamp).tv_sec);
+    input_event(ts->input_dev, EV_SYN, SYN_TIME_NSEC,
+                ktime_to_timespec(ts->timestamp).tv_nsec);
+
     obj_attention = ts->ts_ops->get_touch_points(ts->chip_data, points, ts->max_num);
     if ((obj_attention & TOUCH_BIT_CHECK) != 0) {
         for (i = 0; i < ts->max_num; i++) {
@@ -348,6 +353,7 @@ static void tp_touch_handle(struct touchpanel_data *ts)
             input_mt_report_slot_state(ts->input_dev, MT_TOOL_FINGER, 0);
         }
 #endif
+        ts->timestamp = ktime_get();
         tp_touch_up(ts);
         if (ts->edge_limit_support)
             ts->edge_limit.in_which_area = AREA_NOTOUCH;
