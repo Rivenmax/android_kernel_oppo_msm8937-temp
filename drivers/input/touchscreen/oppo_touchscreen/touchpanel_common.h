@@ -1,5 +1,5 @@
 /**************************************************************
- * Copyright (c)  2008- 2030  Oppo Mobile communication Corp.ltd.£¬
+ * Copyright (c)  2008- 2030  Oppo Mobile communication Corp.ltd.??
  * VENDOR_EDIT
  * File       : touchpanel_common_driver.c
  * Description: Source file for Touch common driver
@@ -280,6 +280,8 @@ struct touchpanel_data {
 
     void                  *chip_data;                   /*Chip Related data*/
     void                  *private_data;                /*Reserved Private data*/
+
+    ktime_t timestamp;
 };
 
 struct oppo_touchpanel_operations {
