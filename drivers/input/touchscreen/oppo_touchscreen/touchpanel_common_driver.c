@@ -514,7 +514,7 @@ static ssize_t proc_double_tap_control_read(struct file *file, char __user *user
         return count;
 
     TPD_DEBUG("double tap enable is: %d\n", ts->double_tap_enable);
-    ret = sprintf(page, "%d\n", ts->double_tap_enable);
+    ret = snprintf(page, sizeof(page), "%d\n", ts->double_tap_enable);
     ret = simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
 
     return ret;
@@ -568,7 +568,7 @@ static ssize_t proc_gesture_control_read(struct file *file, char __user *user_bu
         return count;
 
     TPD_DEBUG("gesture_enable = %d\n", ts->gesture_enable);
-    ret = sprintf(page, "%d\n", ts->gesture_enable);
+    ret = snprintf(page, sizeof(page), "%d\n", ts->gesture_enable);
     ret = simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
 
     return ret;
@@ -584,7 +584,7 @@ static ssize_t proc_coordinate_read(struct file *file, char __user *user_buf, si
         return count;
 
     TPD_DEBUG("%s:gesture_type = %d\n", __func__, ts->gesture.gesture_type);
-    ret = sprintf(page, "%d,%d:%d,%d:%d,%d:%d,%d:%d,%d:%d,%d:%d,%d\n", ts->gesture.gesture_type,
+    ret = snprintf(page, sizeof(page), "%d,%d:%d,%d:%d,%d:%d,%d:%d,%d:%d,%d:%d,%d\n", ts->gesture.gesture_type,
             ts->gesture.Point_start.x, ts->gesture.Point_start.y, ts->gesture.Point_end.x, ts->gesture.Point_end.y,
             ts->gesture.Point_1st.x,   ts->gesture.Point_1st.y,   ts->gesture.Point_2nd.x, ts->gesture.Point_2nd.y,
             ts->gesture.Point_3rd.x,   ts->gesture.Point_3rd.y,   ts->gesture.Point_4th.x, ts->gesture.Point_4th.y,
@@ -667,7 +667,7 @@ static ssize_t proc_glove_control_read(struct file *file, char __user *user_buf,
         return count;
 
     TPD_INFO("glove mode enable is: %d\n", ts->glove_enable);
-    ret = sprintf(page, "%d\n", ts->glove_enable);
+    ret = snprintf(page, sizeof(page), "%d\n", ts->glove_enable);
     ret = simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
 
     return ret;
@@ -719,7 +719,7 @@ static ssize_t proc_debug_control_read(struct file *file, char __user *buf, size
     char page[PAGESIZE];
 
     TPD_INFO("%s: tp_debug = %d.\n", __func__, tp_debug);
-    sprintf(page, "%d", tp_debug);
+    snprintf(page, sizeof(page), "%d", tp_debug);
     ret = simple_read_from_buffer(buf, count, ppos, page, strlen(page));
 
     return ret;
@@ -754,7 +754,7 @@ static ssize_t proc_limit_area_read(struct file *file, char __user *user_buf, si
     if (!ts)
         return count;
     TPD_DEBUG("limit_area is: %d\n", ts->edge_limit.limit_area);
-    ret = sprintf(page, "limit_area = %d left_x1 = %d right_x1 = %d left_x2 = %d right_x2 = %d\n",
+    ret = snprintf(page, sizeof(page), "limit_area = %d left_x1 = %d right_x1 = %d left_x2 = %d right_x2 = %d\n",
             ts->edge_limit.limit_area, ts->edge_limit.left_x1, ts->edge_limit.right_x1, ts->edge_limit.left_x2, ts->edge_limit.right_x2);
     ret = simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
 
@@ -809,7 +809,7 @@ static ssize_t proc_limit_control_read(struct file *file, char __user *user_buf,
         return count;
 
     TPD_INFO("limit_enable is: %d\n", ts->limit_enable);
-    ret = sprintf(page, "%d\n", ts->limit_enable);
+    ret = snprintf(page, sizeof(page), "%d\n", ts->limit_enable);
     ret = simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
 
     return ret;
@@ -952,7 +952,7 @@ static ssize_t proc_finger_protect_result_read(struct file *file, char __user *u
         return 0;
 
     TPD_INFO("%s report_finger_protect = %d\n", __func__, ts->spuri_fp_touch.fp_touch_st);
-    ret = sprintf(page, "%d\n", ts->spuri_fp_touch.fp_touch_st);
+    ret = snprintf(page, sizeof(page), "%d\n", ts->spuri_fp_touch.fp_touch_st);
     ret = simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
     return ret;
 }
