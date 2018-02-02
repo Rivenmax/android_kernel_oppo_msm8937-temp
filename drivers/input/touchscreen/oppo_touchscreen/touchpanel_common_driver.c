@@ -363,6 +363,9 @@ static void tp_touch_handle(struct touchpanel_data *ts)
     input_sync(ts->input_dev);
 }
 
+bool touchkey_enabled;
+EXPORT_SYMBOL(touchkey_enabled);
+
 static void tp_btnkey_release(struct touchpanel_data *ts) {
     if (CHK_BIT(ts->vk_bitmap, BIT_MENU))
         input_report_key_oppo(ts, KEY_MENU, 0);
@@ -553,6 +556,7 @@ static ssize_t proc_touchkey_control_write(struct file *file, const char __user 
     mutex_lock(&ts->mutex);
     if (ts->touchkey_enable != value) {
         ts->touchkey_enable = value;
+        touchkey_enabled = value; // Exported touchkey status
         TPD_INFO("%s: touchkey_enable = %d, is_suspended = %d\n", __func__, ts->touchkey_enable, ts->is_suspended);
         if (ts->is_suspended)
             operate_mode_switch(ts);
@@ -1944,6 +1948,9 @@ int register_common_touch_device(struct touchpanel_data *pdata)
     ts->touchkey_enable = 1;
     ts->touchkey_reverse_enable = 0;
     ts->view_area_touched = 0;
+
+    // Exported touchkey status
+    touchkey_enabled = 1;
     g_tp = ts;
     TPD_INFO("Touch panel probe : normal end\n");
     return 0;
