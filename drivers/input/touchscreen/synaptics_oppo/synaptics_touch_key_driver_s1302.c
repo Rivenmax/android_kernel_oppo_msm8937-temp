@@ -113,6 +113,8 @@ int test_err = 0;
 	static int tp_debug_daily_build = 0;
 #endif
 
+bool touchkey_enabled = 1; // Exported touchkey status
+EXPORT_SYMBOL(touchkey_enabled);
 
 /*-----------------------------------------Global Registers----------------------------------------------*/
 static unsigned short SynaF34DataBase;
@@ -1087,6 +1089,7 @@ static ssize_t synaptics_s1302_key_enable_write(struct file *file, const char __
 	if( (ret == 0 )||(ret == 1) )
 	{
 		key_enable = ret;
+		touchkey_enabled = ret; // Exported touchkey status
 	}
 	return t;
 }
