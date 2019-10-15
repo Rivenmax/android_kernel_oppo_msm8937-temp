@@ -1762,7 +1762,7 @@ static int goodix_get_gesture_info(void *chip_data, struct gesture_info * gestur
         TPD_INFO("clear irq\n");
         switch (doze_buf[0]) {
             case DTAP_DETECT:
-                gesture->gesture_type  = DouTap;
+                gesture->gesture_type  = KEY_GESTURE_DOUBLE_TAP;
                 gesture->Point_start.x = coordinate_single[0]  | (coordinate_single[1] << 8);
                 gesture->Point_start.y = coordinate_single[2]  | (coordinate_single[3] << 8);
                 gesture->Point_end.x   = coordinate_single[8]  | (coordinate_single[9] << 8);
@@ -1773,7 +1773,7 @@ static int goodix_get_gesture_info(void *chip_data, struct gesture_info * gestur
                 break;
 
             case UP_VEE_DETECT :
-                gesture->gesture_type  = UpVee;
+                gesture->gesture_type  = KEY_GESTURE_V;
                 gesture->Point_start.x = coordinate_single[0]  | (coordinate_single[1]  << 8);
                 gesture->Point_start.y = coordinate_single[2]  | (coordinate_single[3]  << 8);
                 gesture->Point_end.x   = coordinate_single[8]  | (coordinate_single[9]  << 8);
@@ -1783,7 +1783,7 @@ static int goodix_get_gesture_info(void *chip_data, struct gesture_info * gestur
                 break;
 
             case DOWN_VEE_DETECT :
-                gesture->gesture_type  = DownVee;
+                gesture->gesture_type  = KEY_GESTURE_INVERT_V;
                 gesture->Point_start.x = coordinate_single[0]  | (coordinate_single[1]  << 8);
                 gesture->Point_start.y = coordinate_single[2]  | (coordinate_single[3]  << 8);
                 gesture->Point_end.x   = coordinate_single[8]  | (coordinate_single[9]  << 8);
@@ -1793,7 +1793,7 @@ static int goodix_get_gesture_info(void *chip_data, struct gesture_info * gestur
                 break;
 
             case LEFT_VEE_DETECT:
-                gesture->gesture_type = LeftVee;
+                gesture->gesture_type = KEY_GESTURE_LEFT_V;
                 gesture->Point_start.x = coordinate_single[0]  | (coordinate_single[1]  << 8);
                 gesture->Point_start.y = coordinate_single[2]  | (coordinate_single[3]  << 8);
                 gesture->Point_end.x   = coordinate_single[8]  | (coordinate_single[9]  << 8);
@@ -1803,7 +1803,7 @@ static int goodix_get_gesture_info(void *chip_data, struct gesture_info * gestur
                 break;
 
             case RIGHT_VEE_DETECT :
-                gesture->gesture_type  = RightVee;
+                gesture->gesture_type  = KEY_GESTURE_RIGHT_V;
                 gesture->Point_start.x = coordinate_single[0]  | (coordinate_single[1]  << 8);
                 gesture->Point_start.y = coordinate_single[2]  | (coordinate_single[3]  << 8);
                 gesture->Point_end.x   = coordinate_single[16] | (coordinate_single[17] << 8);
@@ -1813,7 +1813,7 @@ static int goodix_get_gesture_info(void *chip_data, struct gesture_info * gestur
                 break;
 
             case CIRCLE_DETECT  :
-                gesture->gesture_type = Circle;
+                gesture->gesture_type = KEY_GESTURE_CIRCLE;
                 j = 0;
                 for (i = 0; i < coordinate_size;i++) {
                     Point_input[i].x = coordinate_single[j]   | (coordinate_single[j + 1] << 8);
@@ -1839,7 +1839,7 @@ static int goodix_get_gesture_info(void *chip_data, struct gesture_info * gestur
                 break;
 
             case DOUSWIP_DETECT  :
-                gesture->gesture_type  = DouSwip;
+                gesture->gesture_type  = KEY_GESTURE_DOUBLE_SWIPE;
                 gesture->Point_start.x = coordinate_single[0]  | (coordinate_single[1]  << 8);
                 gesture->Point_start.y = coordinate_single[2]  | (coordinate_single[3]  << 8);
                 gesture->Point_end.x   = coordinate_single[4]  | (coordinate_single[5]  << 8);
@@ -1851,7 +1851,7 @@ static int goodix_get_gesture_info(void *chip_data, struct gesture_info * gestur
                 break;
 
             case DOUUPSWIP_DETECT:
-                gesture->gesture_type  = DouSwip;
+                gesture->gesture_type  = KEY_GESTURE_DOUBLE_SWIPE;
                 gesture->Point_start.x = coordinate_single[0]  | (coordinate_single[1]  << 8);
                 gesture->Point_start.y = coordinate_single[2]  | (coordinate_single[3]  << 8);
                 gesture->Point_end.x   = coordinate_single[4]  | (coordinate_single[5]  << 8);
@@ -1863,7 +1863,7 @@ static int goodix_get_gesture_info(void *chip_data, struct gesture_info * gestur
                 break;
 
             case RIGHT_SLIDE_DETECT :
-                gesture->gesture_type  = Left2RightSwip;
+                gesture->gesture_type  = KEY_GESTURE_SWIPE_RIGHT;
                 gesture->Point_start.x = coordinate_single[0] | (coordinate_single[1] << 8);
                 gesture->Point_start.y = coordinate_single[2] | (coordinate_single[3] << 8);
                 gesture->Point_end.x   = coordinate_single[4] | (coordinate_single[5] << 8);
@@ -1871,7 +1871,7 @@ static int goodix_get_gesture_info(void *chip_data, struct gesture_info * gestur
                 break;
 
             case LEFT_SLIDE_DETECT :
-                gesture->gesture_type  = Right2LeftSwip;
+                gesture->gesture_type  = KEY_GESTURE_SWIPE_LEFT;
                 gesture->Point_start.x = coordinate_single[0] | (coordinate_single[1] << 8);
                 gesture->Point_start.y = coordinate_single[2] | (coordinate_single[3] << 8);
                 gesture->Point_end.x   = coordinate_single[4] | (coordinate_single[5] << 8);
@@ -1879,7 +1879,7 @@ static int goodix_get_gesture_info(void *chip_data, struct gesture_info * gestur
                 break;
 
             case DOWN_SLIDE_DETECT  :
-                gesture->gesture_type  = Up2DownSwip;
+                gesture->gesture_type  = KEY_GESTURE_SWIPE_DOWN;
                 gesture->Point_start.x = coordinate_single[0] | (coordinate_single[1] << 8);
                 gesture->Point_start.y = coordinate_single[2] | (coordinate_single[3] << 8);
                 gesture->Point_end.x   = coordinate_single[4] | (coordinate_single[5] << 8);
@@ -1887,7 +1887,7 @@ static int goodix_get_gesture_info(void *chip_data, struct gesture_info * gestur
                 break;
 
             case UP_SLIDE_DETECT :
-                gesture->gesture_type  = Down2UpSwip;
+                gesture->gesture_type  = KEY_GESTURE_SWIPE_UP;
                 gesture->Point_start.x = coordinate_single[0] | (coordinate_single[1] << 8);
                 gesture->Point_start.y = coordinate_single[2] | (coordinate_single[3] << 8);
                 gesture->Point_end.x   = coordinate_single[4] | (coordinate_single[5] << 8);
@@ -1895,7 +1895,7 @@ static int goodix_get_gesture_info(void *chip_data, struct gesture_info * gestur
                 break;
 
             case M_DETECT  :
-                gesture->gesture_type  = Mgestrue;
+                gesture->gesture_type  = KEY_GESTURE_M;
                 gesture->Point_start.x = coordinate_single[0]  | (coordinate_single[1]  << 8);
                 gesture->Point_start.y = coordinate_single[2]  | (coordinate_single[3]  << 8);
                 gesture->Point_end.x   = coordinate_single[16] | (coordinate_single[17] << 8);
@@ -1909,7 +1909,7 @@ static int goodix_get_gesture_info(void *chip_data, struct gesture_info * gestur
                 break;
 
             case W_DETECT :
-                gesture->gesture_type  = Wgestrue;
+                gesture->gesture_type  = KEY_GESTURE_W;
                 gesture->Point_start.x = coordinate_single[0]  | (coordinate_single[1]  << 8);
                 gesture->Point_start.y = coordinate_single[2]  | (coordinate_single[3]  << 8);
                 gesture->Point_end.x   = coordinate_single[16] | (coordinate_single[17] << 8);
@@ -1923,7 +1923,7 @@ static int goodix_get_gesture_info(void *chip_data, struct gesture_info * gestur
                 break;
 
             default:
-                gesture->gesture_type = UnkownGesture;
+                gesture->gesture_type = KEY_GESTURE_UNKNOWN;
                 break;
         }  
 
