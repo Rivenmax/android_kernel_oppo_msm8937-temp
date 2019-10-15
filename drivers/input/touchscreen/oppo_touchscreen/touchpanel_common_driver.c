@@ -38,7 +38,7 @@
 
 /*******Part0:LOG TAG Declear************************/
 #define TPD_PRINT_POINT_NUM 150
-#define TPD_DEVICE "touchpanel"
+#define TPD_DEVICE "oppo_touchscreen"
 #define TPD_INFO(a, arg...)  pr_err("[TP]"TPD_DEVICE ": " a, ##arg)
 #define TPD_DEBUG(a, arg...)\
     do{\
@@ -206,25 +206,29 @@ static void tp_gesture_handle(struct touchpanel_data *ts)
     ts->ts_ops->get_gesture_info(ts->chip_data, &gesture_info_temp);
     tp_geture_info_transform(&gesture_info_temp, &ts->resolution_info);
 
-    TPD_INFO("detect %s gesture\n", gesture_info_temp.gesture_type == DouTap ? "double tap" :
-            gesture_info_temp.gesture_type == UpVee ? "up vee" :
-            gesture_info_temp.gesture_type == DownVee ? "down vee" :
-            gesture_info_temp.gesture_type == LeftVee ? "(>)" :
-            gesture_info_temp.gesture_type == RightVee ? "(<)" :
-            gesture_info_temp.gesture_type == Circle ? "circle" :
-            gesture_info_temp.gesture_type == DouSwip ? "(||)" :
-            gesture_info_temp.gesture_type == Left2RightSwip ? "(-->)" :
-            gesture_info_temp.gesture_type == Right2LeftSwip ? "(<--)" :
-            gesture_info_temp.gesture_type == Up2DownSwip ? "up to down |" :
-            gesture_info_temp.gesture_type == Down2UpSwip ? "down to up |" :
-            gesture_info_temp.gesture_type == Mgestrue ? "(M)" :
-            gesture_info_temp.gesture_type == Wgestrue ? "(W)" : "unknown");
+    TPD_INFO("detect %s gesture\n",
+             gesture_info_temp.gesture_type ==
+             KEY_GESTURE_DOUBLE_TAP ? "double tap" : gesture_info_temp.gesture_type ==
+             KEY_GESTURE_V ? "up vee" : gesture_info_temp.gesture_type ==
+             KEY_GESTURE_INVERT_V ? "down vee" : gesture_info_temp.gesture_type ==
+             KEY_GESTURE_LEFT_V ? "(>)" : gesture_info_temp.gesture_type ==
+             KEY_GESTURE_RIGHT_V ? "(<)" : gesture_info_temp.gesture_type ==
+             KEY_GESTURE_CIRCLE ? "circle" : gesture_info_temp.gesture_type ==
+             KEY_GESTURE_DOUBLE_SWIPE ? "(||)" : gesture_info_temp.gesture_type ==
+             KEY_GESTURE_SWIPE_RIGHT ? "(-->)" : gesture_info_temp.gesture_type ==
+             KEY_GESTURE_SWIPE_LEFT ? "(<--)" : gesture_info_temp.gesture_type ==
+             KEY_GESTURE_SWIPE_DOWN ? "up to down |" : gesture_info_temp.
+             gesture_type ==
+             KEY_GESTURE_SWIPE_UP ? "down to up |" : gesture_info_temp.
+             gesture_type ==
+             KEY_GESTURE_M ? "(M)" : gesture_info_temp.gesture_type ==
+             KEY_GESTURE_W ? "(W)" : "unknown");
 
-    if (gesture_info_temp.gesture_type != UnkownGesture) {
+    if (gesture_info_temp.gesture_type != KEY_GESTURE_UNKNOWN) {
         memcpy(&ts->gesture, &gesture_info_temp, sizeof(struct gesture_info));
-        input_report_key(ts->input_dev, KEY_F4, 1);
+        input_report_key(ts->input_dev, gesture_info_temp.gesture_type, 1);
         input_sync(ts->input_dev);
-        input_report_key(ts->input_dev, KEY_F4, 0);
+        input_report_key(ts->input_dev, gesture_info_temp.gesture_type, 0);
         input_sync(ts->input_dev);
     }
 }
@@ -1008,9 +1012,9 @@ static int init_touchpanel_proc(struct touchpanel_data *ts)
         }
     }
 
-    //proc files-step2-4:/proc/touchpanel/double_tap_enable (black gesture related interface)
+    //proc files-step2-4:/proc/touchpanel/gesture_enable (black gesture related interface)
     if (ts->black_gesture_support) {
-        prEntry_tmp = proc_create_data("double_tap_enable", 0666, prEntry_tp, &proc_gesture_control_fops, ts);
+        prEntry_tmp = proc_create_data("gesture_enable", 0666, prEntry_tp, &proc_gesture_control_fops, ts);
         if (prEntry_tmp == NULL) {
             ret = -ENOMEM;
             TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__, __LINE__);
@@ -1080,7 +1084,19 @@ static int init_input_device(struct touchpanel_data *ts)
     set_bit(INPUT_PROP_DIRECT, ts->input_dev->propbit);
     set_bit(BTN_TOUCH, ts->input_dev->keybit);
     if (ts->black_gesture_support) {
-        set_bit(KEY_F4, ts->input_dev->keybit);
+        set_bit(KEY_GESTURE_DOUBLE_TAP, ts->input_dev->keybit);
+        set_bit(KEY_GESTURE_V, ts->input_dev->keybit);
+        set_bit(KEY_GESTURE_INVERT_V, ts->input_dev->keybit);
+        set_bit(KEY_GESTURE_LEFT_V, ts->input_dev->keybit);
+        set_bit(KEY_GESTURE_RIGHT_V, ts->input_dev->keybit);
+        set_bit(KEY_GESTURE_CIRCLE, ts->input_dev->keybit);
+        set_bit(KEY_GESTURE_DOUBLE_SWIPE, ts->input_dev->keybit);
+        set_bit(KEY_GESTURE_SWIPE_RIGHT, ts->input_dev->keybit);
+        set_bit(KEY_GESTURE_SWIPE_LEFT, ts->input_dev->keybit);
+        set_bit(KEY_GESTURE_SWIPE_DOWN, ts->input_dev->keybit);
+        set_bit(KEY_GESTURE_SWIPE_UP, ts->input_dev->keybit);
+        set_bit(KEY_GESTURE_M, ts->input_dev->keybit);
+        set_bit(KEY_GESTURE_W, ts->input_dev->keybit);
     }
 
     switch(ts->vk_type) {
@@ -1719,7 +1735,7 @@ int register_common_touch_device(struct touchpanel_data *pdata)
     ts->i2c_ready = true;
     ts->loading_fw = false;
     ts->is_suspended = 0;
-    ts->gesture_enable = 0;
+    ts->gesture_enable = 1;
     ts->glove_enable = 0;
     ts->view_area_touched = 0;
     g_tp = ts;
