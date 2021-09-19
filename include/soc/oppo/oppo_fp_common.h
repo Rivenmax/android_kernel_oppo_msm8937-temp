@@ -20,19 +20,19 @@
 
 #include <linux/platform_device.h>
 
-#define FP_ID_MAX_LENGTH 10 //the length of /proc/fp_id should less than FP_ID_MAX_LENGTH !!!
+#define FP_ID_MAX_LENGTH 10
 
 typedef enum {
-    FP_GOODIX,
-    FP_FPC ,
-    FP_UNKNOWN,
+	FP_GOODIX,
+	FP_FPC,
+	FP_UNKNOWN,
 } fp_vendor_t;
 
 enum {
-    FP_OK,
-    FP_ERROR_GPIO,
-    FP_ERROR_GENERAL,
-} ;
+	FP_OK,
+	FP_ERROR_GPIO,
+	FP_ERROR_GENERAL,
+};
 
 struct fp_data { 
 	struct device *dev;

@@ -12,7 +12,8 @@
 ************************************************************************************/
 #ifndef _OPPO_BOOT_H
 #define _OPPO_BOOT_H
-enum{
+
+enum {
 	MSM_BOOT_MODE__NORMAL,
 	MSM_BOOT_MODE__FASTBOOT,
 	MSM_BOOT_MODE__RECOVERY,
@@ -23,16 +24,9 @@ enum{
 	MSM_BOOT_MODE__CHARGE,
 	MSM_BOOT_MODE__SILENCE,
 	MSM_BOOT_MODE__SAU,
-   
 };
 
-extern int get_boot_mode(void);
-#ifdef VENDOR_EDIT
-//Fuchun.Liao@Mobile.BSP.CHG 2016-01-14 add for charge
-extern bool qpnp_is_power_off_charging(void);
-#endif
-#ifdef VENDOR_EDIT
-//PengNan@SW.BSP add for detect charger when reboot 2016-04-22
-extern bool qpnp_is_charger_reboot(void);
-#endif /*VENDOR_EDIT*/
+int get_boot_mode(void);
+bool qpnp_is_power_off_charging(void);
+bool qpnp_is_charger_reboot(void);
 #endif

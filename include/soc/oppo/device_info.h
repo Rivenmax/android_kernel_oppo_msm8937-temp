@@ -14,30 +14,17 @@
 #ifndef _DEVICE_INFO_H
 #define _DEVICE_INFO_H
 
-#if 0
-//dram type
-enum{
-	DRAM_TYPE0 = 0,
-	DRAM_TYPE1,	
-	DRAM_TYPE2,
-	DRAM_TYPE3,
-	DRAM_UNKNOWN,
-};
-#endif
-
-enum{
+enum {
 	MAINBOARD_RESOURCE0 = 0,
 	MAINBOARD_RESOURCE1 = 1,
 	MAINBOARD_RESOURCE2 = 2,
 };
 
-struct manufacture_info
-{
+struct manufacture_info {
 	char *version;
 	char *manufacture;
 };
 
 int register_device_proc(char *name, char *version, char *manufacture);
 
-
-#endif /*_DEVICE_INFO_H*/
+#endif /* _DEVICE_INFO_H */
