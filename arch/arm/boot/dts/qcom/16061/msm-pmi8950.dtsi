@@ -1,0 +1,156 @@
+/* Copyright (c) 2015-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "../msm-pmi8950.dtsi"
+
+&spmi_bus {
+	qcom,pmi8950@2 {
+		qcom,leds@a100 {
+			status = "okay";
+			qcom,led_mpp_2 {
+				label = "mpp";
+				linux,name = "button-backlight";
+				linux,default-trigger = "none";
+				qcom,default-state = "off";
+				qcom,max-current = <5>;
+				qcom,current-setting = <5>;
+				qcom,id = <6>;
+				qcom,mode = "manual";
+				qcom,source-sel = <1>;
+				qcom,mode-ctrl = <0x60>;
+			};
+		};
+
+		pmi8950_charger: qcom,qpnp-smbcharger {
+			/delete-property/ qcom,chg-inhibit-fg;
+			/delete-property/ qcom,thermal-mitigation;
+			/delete-property/ qcom,parallel-usb-min-current-ma;
+			/delete-property/ qcom,parallel-usb-9v-min-current-ma;
+			/delete-property/ qcom,parallel-allowed-lowering-ma;
+
+			qcom,float-voltage-mv = <4370>;
+			qcom,input_current_charger_ma = <2000>;
+			qcom,input_current_usb_ma = <500>;
+			qcom,input_current_led_ma = <1200>;
+			qcom,input_current_led_ma_forcmcc = <500>;
+			qcom,input_current_camera_ma = <500>;
+			qcom,iterm-ma = <150>;
+			qcom,recharge-mv = <100>;
+			qcom,external_gauge;
+
+			qcom,removed_bat_decidegc = <190>;					/* <-19C */
+
+			qcom,cold_bat_decidegc = <30>;						/* -3C ~ 0C */
+			qcom,temp_cold_vfloat_mv = <3980>;
+			qcom,temp_cold_fastchg_current_ma = <325>;			/* 300~364 mAh */
+
+			qcom,little_cold_bat_decidegc = <0>;				/* 0C ~ 5C */
+			qcom,temp_little_cold_vfloat_mv = <4380>;
+			qcom,temp_little_cold_fastchg_current_ma = <405>;	/* 0.15C = 423 mAh */
+
+			qcom,cool_bat_decidegc = <50>;						/* 5C ~ 12C */
+			qcom,temp_cool_vfloat_mv = <4380>;
+			qcom,temp_cool_fastchg_current_ma_high = <673>;		/* 0.25C = 705 mAh */
+			qcom,temp_cool_fastchg_current_ma_low = <405>;		/* 0.15C = 423 mAh */
+
+			qcom,little_cool_bat_decidegc = <120>;				/* 12C ~ 22C */
+			qcom,temp_little_cool_vfloat_mv = <4380>;
+			qcom,temp_little_cool_fastchg_current_ma = <1237>;	/* 0.45C = 1269 mAh */
+
+			qcom,normal_bat_decidegc = <220>;					/* 22C ~ 45C*/
+			qcom,temp_normal_fastchg_current_ma = <1801>;		/* 0.65C = 1833 mAh */
+			qcom,temp_normal_vfloat_mv_normalchg = <4380>;
+			qcom,temp_normal_vfloat_mv_voocchg = <4400>;
+
+			qcom,warm_bat_decidegc = <450>;						/* 45C ~ 53C */
+			qcom,temp_warm_vfloat_mv = <4080>;
+			qcom,temp_warm_fastchg_current_ma = <701>;			/* 0.25C = 705 mAh */
+
+			qcom,hot_bat_decidegc = <530>;						/* > 53C */
+
+			qcom,non_standard_vfloat_mv = <3600>;
+			qcom,non_standard_fastchg_current_ma = <512>;
+
+			qcom,non_standard_vfloat_sw_limit = <3600>;
+			qcom,cold_vfloat_sw_limit = <3987>;
+			qcom,little_cold_vfloat_sw_limit = <4387>;
+			qcom,cool_vfloat_sw_limit = <4387>;
+			qcom,little_cool_vfloat_sw_limit = <4387>;
+			qcom,normal_vfloat_sw_limit = <4387>;
+			qcom,warm_vfloat_sw_limit = <4087>;
+			qcom,vfloat_step_mv = <20>;
+
+			qcom,max_chg_time_sec = <36000>;
+			qcom,charger_hv_thr = <5800>;
+			qcom,charger_lv_thr = <3400>;
+			qcom,vbatt_full_thr = <4470>;
+			qcom,vbatt_hv_thr = <4500>;
+			qcom,chg_ctrl_by_lcd;
+			qcom,chg_ctrl_by_camera;
+			qcom,skip-fg-control-chg;
+			qcom,not-support-1200ma;
+
+			qcom,chargerid_switch-gpio = <&tlmm 94 0x00>;
+			pinctrl-names = "chargerid_switch_active", "chargerid_switch_sleep", "chargerid_switch_default";
+			pinctrl-0 = <&chargerid_switch_active>;
+			pinctrl-1 = <&chargerid_switch_sleep>;
+			pinctrl-2 = <&chargerid_switch_default>;
+		};
+
+		pmi8950_fg: qcom,fg {
+			qcom,fg-chg-iterm-ma = <150>;
+			qcom,fg-cutoff-voltage-mv = <3400>;
+			qcom,use-qpnp-fg;
+			qcom,thermal-coefficients = [da 86 f0 50 08 3c];
+			qcom,fg-therm-delay-us = <10240>;
+		};
+	};
+
+	qcom,pmi8950@3 {
+		wled: qcom,leds@d800 {
+			qcom,disp-type-amoled;
+		};
+
+		flash_led: qcom,leds@d300 {
+			pmi8950_flash0: qcom,flash_0 {
+				qcom,current = <1000>;
+			};
+
+			pmi8950_flash1: qcom,flash_1 {
+				qcom,current = <1000>;
+			};
+
+			pmi8950_torch0: qcom,torch_0 {
+				qcom,current = <50>;
+			};
+
+			pmi8950_torch1: qcom,torch_1 {
+				qcom,current = <50>;
+			};
+
+			pmi8950_switch: qcom,switch {
+				/delete-node/ reg0;
+			};
+		};
+
+		pmi_haptic: qcom,haptic@c000 {
+			/delete-property/ vcc_pon-supply;
+			/delete-property/ qcom,en-brake;
+			/delete-property/ qcom,use-sc-irq;
+
+			status = "okay";
+			qcom,vmax-mv = <2900>;
+			qcom,vib-timemin-ms = <35>;
+		};
+	};
+};
+
