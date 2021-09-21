@@ -1123,6 +1123,8 @@ config TOUCHSCREEN_GT9XX
 
           If unsure, say N.
 
+source "drivers/input/touchscreen/oppo_touchscreen/Kconfig"
+
 config TOUCHSCREEN_MAXIM_STI
 	tristate "Maxim based STI touchscreens"
 	depends on SPI_MASTER
