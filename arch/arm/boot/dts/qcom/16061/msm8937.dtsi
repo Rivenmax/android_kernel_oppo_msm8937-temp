@@ -36,6 +36,17 @@
 	};
 };
 
+&firmware {
+	android {
+		fstab {
+			compatible = "android,fstab";
+			vendor {
+				status = "disable";
+			};
+		};
+	};
+};
+
 &soc {
 	qcom,oembackup_sharedmem@0 {
 		compatible = "qcom,sharedmem-uio";
