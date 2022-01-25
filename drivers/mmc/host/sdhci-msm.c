@@ -1734,6 +1734,11 @@ struct sdhci_msm_pltfm_data *sdhci_msm_populate_pdata(struct device *dev,
 	pdata->vreg_data = devm_kzalloc(dev, sizeof(struct
 						    sdhci_msm_slot_reg_data),
 					GFP_KERNEL);
+
+#ifdef CONFIG_MACH_OPPO
+	pdata->sd_vdd_en = of_get_named_gpio_flags(np, "vdd-gpio-en", 0, &flags);
+#endif
+
 	if (!pdata->vreg_data) {
 		dev_err(dev, "failed to allocate memory for vreg data\n");
 		goto out;
@@ -1741,8 +1746,15 @@ struct sdhci_msm_pltfm_data *sdhci_msm_populate_pdata(struct device *dev,
 
 	if (sdhci_msm_dt_parse_vreg_info(dev, &pdata->vreg_data->vdd_data,
 					 "vdd")) {
+#ifdef CONFIG_MACH_OPPO
+		if (!gpio_is_valid(pdata->sd_vdd_en)) {
+			dev_err(dev, "failed parsing vdd gpio\n");
+			goto out;
+		}
+#else
 		dev_err(dev, "failed parsing vdd data\n");
 		goto out;
+#endif
 	}
 	if (sdhci_msm_dt_parse_vreg_info(dev,
 					 &pdata->vreg_data->vdd_io_data,
@@ -2172,6 +2184,10 @@ out:
 	return ret;
 }
 
+#ifdef CONFIG_MACH_OPPO
+static bool first_pwr_on = true;
+#endif
+
 static int sdhci_msm_setup_vreg(struct sdhci_msm_pltfm_data *pdata,
 			bool enable, bool is_init)
 {
@@ -2186,6 +2202,19 @@ static int sdhci_msm_setup_vreg(struct sdhci_msm_pltfm_data *pdata,
 		goto out;
 	}
 
+#ifdef CONFIG_MACH_OPPO
+	if (gpio_is_valid(pdata->sd_vdd_en) && enable) {
+		gpio_direction_output(pdata->sd_vdd_en, 1);
+		gpio_set_value(pdata->sd_vdd_en, 1);
+		if (first_pwr_on) {
+			first_pwr_on = false;
+			mdelay(20);
+		} else {
+			mdelay(2);
+		}
+	}
+#endif
+
 	vreg_table[0] = curr_slot->vdd_data;
 	vreg_table[1] = curr_slot->vdd_io_data;
 
@@ -2199,6 +2228,15 @@ static int sdhci_msm_setup_vreg(struct sdhci_msm_pltfm_data *pdata,
 				goto out;
 		}
 	}
+
+#ifdef CONFIG_MACH_OPPO
+	if (gpio_is_valid(pdata->sd_vdd_en) && !enable) {
+		gpio_direction_output(pdata->sd_vdd_en, 0);
+		gpio_set_value(pdata->sd_vdd_en, 0);
+		mdelay(2);
+	}
+#endif
+
 out:
 	return ret;
 }
@@ -4121,6 +4159,18 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 				  sdhci_msm_bus_work);
 	sdhci_msm_bus_voting(host, 1);
 
+#ifdef CONFIG_MACH_OPPO
+	if (gpio_is_valid(msm_host->pdata->sd_vdd_en)) {
+		ret = gpio_request(msm_host->pdata->sd_vdd_en, "sdcard_vdd_enable");
+		if (ret)
+			dev_err(&pdev->dev, "%s: Failed to request sdcard vdd gpio ret=%d\n", __func__, ret);
+
+		ret = gpio_direction_output(msm_host->pdata->sd_vdd_en, 0);
+		if (ret)
+			dev_err(&pdev->dev, "%s: Failed to set sdcard vdd gpio ret=%d\n", __func__, ret);
+	}
+#endif
+
 	/* Setup regulators */
 	ret = sdhci_msm_vreg_init(&pdev->dev, msm_host->pdata, true);
 	if (ret) {
@@ -4479,6 +4529,12 @@ static int sdhci_msm_remove(struct platform_device *pdev)
 		sdhci_msm_bus_cancel_work_and_set_vote(host, 0);
 		sdhci_msm_bus_unregister(msm_host);
 	}
+
+#ifdef CONFIG_MACH_OPPO
+	if (gpio_is_valid(msm_host->pdata->sd_vdd_en))
+		gpio_free(msm_host->pdata->sd_vdd_en);
+#endif
+
 	return 0;
 }
 
