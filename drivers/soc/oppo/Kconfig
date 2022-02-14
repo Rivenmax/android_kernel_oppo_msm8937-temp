@@ -6,10 +6,4 @@ config OPPO_DEVICE_INFO
 	help
 	  Say Y to enable OPPO device info driver
 
-config OPPO_FP_COMMON
-	bool "OPPO fingerprint compatibility driver"
-	default y if MACH_OPPO
-	help
-	  Say Y to enable OPPO fingerprint compatibility driver
-
 endmenu
