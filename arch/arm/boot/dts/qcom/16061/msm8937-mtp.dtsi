@@ -28,28 +28,10 @@
 };
 
 &soc {
-	oppo_fp_common {
-		compatible = "oppo,fp_common";
-		oppo,fp-id0 = <&tlmm 7 0x00>;
-		oppo,fp-id1 = <&tlmm 33 0x00>;
-		oppo,fp-id2 = <&tlmm 13 0x00>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&gpio_id0_default &gpio_id1_default &gpio_id2_default>;
-	};
-
 	fpc_fpc1020 {
 		compatible = "fpc,fpc1020";
 		fpc,irq-gpio = <&tlmm 38 0x00>;
 		vdd_io-supply = <&pm8937_l6>;
-	};
-
-	goodix_fp {
-		compatible = "goodix,goodix_fp";
-		interrupt-parent = <&tlmm>;
-		interrupts = <38 0>;
-		spi-max-frequency = <1920000>;
-		goodix,gpio_irq = <&tlmm 38 0x1>;
-		goodix,gpio_reset = <&tlmm 16 0x0>;
 	};
 
 	gpio_keys {
