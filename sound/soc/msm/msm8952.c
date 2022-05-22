@@ -34,6 +34,10 @@
 #include <linux/regulator/consumer.h>
 #define DRV_NAME "msm8952-asoc-wcd"
 
+#ifdef CONFIG_MACH_OPPO
+#include "oppo_audio_custom.h"
+#endif
+
 #define BTSCO_RATE_8KHZ 8000
 #define BTSCO_RATE_16KHZ 16000
 
@@ -1065,6 +1069,36 @@ static const struct soc_enum msm_snd_enum[] = {
 				mi2s_rx_sample_rate_text),
 };
 
+#ifdef CONFIG_MACH_OPPO
+static char const *oppo_spk_pa_text[] = {"DISABLE", "ENABLE"};
+static char const *oppo_hp_pa_text[] = {"DISABLE", "ENABLE"};
+static char const *oppo_pa_control_text[] = {"Off", "On"};
+
+static const struct soc_enum oppo_audio_enum[] = {
+    SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(oppo_spk_pa_text), oppo_spk_pa_text),
+    SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(oppo_hp_pa_text), oppo_hp_pa_text),
+    SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(oppo_pa_control_text), oppo_pa_control_text),
+};
+
+static int oppo_pa_control_get(struct snd_kcontrol *kcontrol,
+			struct snd_ctl_elem_value *ucontrol)
+{
+    return 0;
+}
+
+static int oppo_pa_control_put(struct snd_kcontrol *kcontrol,
+			struct snd_ctl_elem_value *ucontrol)
+{
+    int enable = 0;
+
+    enable = ucontrol->value.integer.value[0];
+    pr_info("%s: enable %d\n", __func__, enable);
+    oppo_spk_pa_enable(enable);
+
+    return 0;
+}
+#endif
+
 static const struct snd_kcontrol_new msm_snd_controls[] = {
 	SOC_ENUM_EXT("MI2S_RX Format", msm_snd_enum[0],
 			mi2s_rx_bit_format_get, mi2s_rx_bit_format_put),
@@ -1084,6 +1118,14 @@ static const struct snd_kcontrol_new msm_snd_controls[] = {
 			msm_vi_feed_tx_ch_get, msm_vi_feed_tx_ch_put),
 	SOC_ENUM_EXT("MI2S_RX SampleRate", msm_snd_enum[6],
 			mi2s_rx_sample_rate_get, mi2s_rx_sample_rate_put),
+#ifdef CONFIG_MACH_OPPO
+	SOC_ENUM_EXT("Ext_SPK_Switch", oppo_audio_enum[0],
+            oppo_speaker_pa_get, oppo_speaker_pa_put),
+    SOC_ENUM_EXT("Ext_HP_Switch", oppo_audio_enum[1],
+            oppo_hp_pa_get, oppo_hp_pa_put),
+    SOC_ENUM_EXT("Oppo Pa Control", oppo_audio_enum[2],
+            oppo_pa_control_get, oppo_pa_control_put),
+#endif
 };
 
 static int msm8952_mclk_event(struct snd_soc_dapm_widget *w,
@@ -1610,7 +1652,11 @@ static void *def_msm8952_wcd_mbhc_cal(void)
 		return NULL;
 
 #define S(X, Y) ((WCD_MBHC_CAL_PLUG_TYPE_PTR(msm8952_wcd_cal)->X) = (Y))
+#ifdef CONFIG_MACH_OPPO
+	S(v_hs_max, 1700);
+#else
 	S(v_hs_max, 1500);
+#endif
 #undef S
 #define S(X, Y) ((WCD_MBHC_CAL_BTN_DET_PTR(msm8952_wcd_cal)->X) = (Y))
 	S(num_btn, WCD_MBHC_DEF_BUTTONS);
@@ -1633,6 +1679,23 @@ static void *def_msm8952_wcd_mbhc_cal(void)
 	 * 210-290 == Button 2
 	 * 360-680 == Button 3
 	 */
+#ifdef CONFIG_MACH_OPPO
+	btn_low[0] = 60;
+	btn_high[0] = 130;
+	btn_low[1] = 130;
+	btn_high[1] = 131;
+	btn_low[2] = 131;
+	btn_high[2] = 132;
+	btn_low[3] = 132;
+	btn_high[3] = 133;
+#if defined(CONFIG_MACH_16017) || defined(CONFIG_MACH_16027)
+	btn_low[4] = 240;
+	btn_high[4] = 315;
+#elif defined(CONFIG_MACH_16061)
+	btn_low[4] = 400;
+	btn_high[4] = 400;
+#endif
+#else
 	btn_low[0] = 75;
 	btn_high[0] = 75;
 	btn_low[1] = 150;
@@ -1643,6 +1706,7 @@ static void *def_msm8952_wcd_mbhc_cal(void)
 	btn_high[3] = 450;
 	btn_low[4] = 500;
 	btn_high[4] = 500;
+#endif
 
 	return msm8952_wcd_cal;
 }
@@ -3347,6 +3411,10 @@ parse_mclk_freq:
 		ret = -EPROBE_DEFER;
 		goto err;
 	}
+
+#ifdef CONFIG_MACH_OPPO
+	oppo_audio_init(pdev);
+#endif
 
 	ret = snd_soc_register_card(card);
 	if (ret) {
