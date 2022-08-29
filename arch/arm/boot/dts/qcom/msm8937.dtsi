@@ -33,7 +33,11 @@
 		other_ext_mem: other_ext_region@0 {
 			compatible = "removed-dma-pool";
 			no-map;
-			reg = <0x0 0x85b00000 0x0 0xd00000>;
+			/*#ifndef VENDOR_EDIT Haitao.zhou@phone.bsp 2016-08-16 modify for fpc TEE tz app memory*/
+			/*reg = <0x0 0x85b00000 0x0 0xd00000>;*/
+			/*#else */
+			reg = <0x0 0x84a00000 0x0 0x1E00000>;
+			/*#endif VENDOR_EDIT */
 		};
 
 		modem_mem: modem_region@0 {
@@ -47,6 +51,17 @@
 			no-map;
 			reg = <0x0 0x8b800000 0x0 0x1800000>;
 		};
+
+		/*#ifdef VENDOR_EDIT*/
+		/*fanhui@PhoneSW.BSP, 2016-07-06, enable pstore*/
+		pstore_reserve_mem: pstore_reserve_region@0 {
+			linux,reserve-contiguous-region;
+			linux,reserve-region;
+			linux,remove-completely;
+			reg = <0x0 0x9ff00000 0x0 0x100000>;
+			label = "pstore_reserve_mem";
+		};
+		/*#endif VENDOR_EDIT*/
 
 		venus_mem: venus_region@0 {
 			compatible = "shared-dma-pool";
@@ -209,6 +224,16 @@
 		reg-names = "rmtfs";
 		qcom,client-id = <0x00000001>;
 	};
+
+	/*#ifdef VENDOR_EDIT */
+    /*WenLong.Cai@Mobile.Network, 2016/08/17 add for enlarge nv backup memory */
+	qcom,oembackup_sharedmem@0 {
+		compatible = "qcom,sharedmem-uio";
+		reg = <0x0 0x00100000>; /* '0' indicates dynamic allocation */
+		reg-names = "oembackup";
+		qcom,client-id = <0x00000003>;
+	};
+	/*#endif  VENDOR_EDIT */
 
 	restart@4ab000 {
 		compatible = "qcom,pshold";
@@ -435,7 +460,10 @@
 
 	qcom,bcl {
 		compatible = "qcom,bcl";
-		qcom,bcl-enable;
+//#ifdef VENDOR_EDIT
+//jie.cheng@swdp.sh,2016/09/20,disable bcl becuase it will cause failure in recovery mode.
+		//qcom,bcl-enable;
+//#endif
 		qcom,bcl-framework-interface;
 		qcom,bcl-freq-control-list = <&CPU0 &CPU1 &CPU2 &CPU3
 						&CPU4 &CPU5 &CPU6 &CPU7>;
@@ -502,16 +530,19 @@
 			<&dma_blsp1 7 32 0x20000020 0x20>;
 		dma-names = "tx", "rx";
 
-		pericom-type-c@1d {
-			compatible = "pericom,usb-type-c";
-			reg = <0x1d>;
-			vdd_io-supply = <&pm8937_l5>;
-			interrupt-parent = <&tlmm>;
-			interrupts = <97 2>;  /* TLMM 97, TRIGGER_FALLING */
-			pericom,enb-gpio = <&tlmm 131 0x1>;	/* active low */
-			pinctrl-names = "default";
-			pinctrl-0 = <&usbc_int_default>;
-		};
+//#ifndef VENDOR_EDIT
+//Fuchun.Liao@BSP.CHG.Basic del for not use usb-type-c device
+		//pericom-type-c@1d {
+			//compatible = "pericom,usb-type-c";
+			//reg = <0x1d>;
+			//vdd_io-supply = <&pm8937_l5>;
+			//interrupt-parent = <&tlmm>;
+			//interrupts = <97 2>;  /* TLMM 97, TRIGGER_FALLING */
+			//pericom,enb-gpio = <&tlmm 131 0x1>;	/* active low */
+			//pinctrl-names = "default";
+			//pinctrl-0 = <&usbc_int_default>;
+		//};
+//#endif /* VENDOR_EDIT */
 
 		/* DSI_TO_HDMI I2C configuration */
 		adv7533@39 {
@@ -551,15 +582,19 @@
 			<&clock_gcc clk_gcc_blsp1_qup3_i2c_apps_clk>;
 
 		pinctrl-names = "i2c_active", "i2c_sleep";
-		pinctrl-0 = <&i2c_3_active>;
-		pinctrl-1 = <&i2c_3_sleep>;
+	
+		pinctrl-0 = <&i2c_3_active>;	
+		pinctrl-1 = <&i2c_3_sleep>;	
 		qcom,noise-rjct-scl = <0>;
 		qcom,noise-rjct-sda = <0>;
 		qcom,master-id = <86>;
 		dmas = <&dma_blsp1 8 64 0x20000020 0x20>,
 			<&dma_blsp1 9 32 0x20000020 0x20>;
 		dma-names = "tx", "rx";
-		status = "disabled";
+		//#ifndef VENDOR_EDIT
+		/*Wanghao@BSP.group 2016-08-08 delete for enable i2c_3*/
+		//status = "disabled";
+		//#endif
 	};
 
 	i2c_5: i2c@7af5000 { /* BLSP2 QUP1 */
@@ -1077,7 +1112,11 @@
 
 		clock-names = "xo", "rf_clk", "measure", "wcnss_debug";
 
-		qcom,has-autodetect-xo;
+		//#ifndef VENDOR_EDIT
+		//Yuanliu.Tang@Connectivity.WiFi.Basic.SwitchWiFi, 2016/08/16,
+		//Remove for use 19.2MHz XO
+		//qcom,has-autodetect-xo;
+		//#endif /* VENDOR_EDIT */
 		qcom,is-pronto-v3;
 		qcom,has-pronto-hw;
 		qcom,has-vsys-adc-channel;
@@ -1100,7 +1139,18 @@
 		HSUSB_3p3-supply = <&pm8937_l13>;
 		qcom,vdd-voltage-level = <0 1200000 1200000>;
 		vbus_otg-supply = <&smbcharger_charger_otg>;
+		
+//#ifdef VENDOR_EDIT
+// wenbin.liu@BSP.CHG.Basic, 2016/08/29
+// Add eye map setting  HW 80 to 83=<0x33 0x38 0x27 0x37>
+		qcom,hsusb-otg-phy-init-seq = <0x73 0x80 0x38 0x81 0x27 0x82 0x33 0x83 0xffffffff>;
+//#endif /*VENDOR_EDIT*/
 
+//#ifdef VENDOR_EDIT
+// wenbin.liu@BSP.CHG.Basic, 2016/11/10
+// Add for QCMM  Patch solve  BUG 872157
+		qcom,floated-charger-enable = <1>;
+//#endif /*VENDOR_EDIT*/
 		qcom,hsusb-otg-phy-type = <3>; /* SNPS Femto PHY */
 		qcom,hsusb-otg-mode = <3>; /* OTG mode */
 		qcom,hsusb-otg-otg-control = <2>; /* PMIC */
@@ -1179,7 +1229,11 @@
 		reg = <0xb017000 0x1000>;
 		reg-names = "wdt-base";
 		interrupts = <0 3 0>, <0 4 0>;
-		qcom,bark-time = <11000>;
+		//#ifdef VENDOR_EDIT //yixue.ge modify bark time to 20s
+		//qcom,bark-time = <11000>;
+		//#else
+		qcom,bark-time = <20000>;
+		//#endif
 		qcom,pet-time = <10000>;
 		qcom,ipi-ping;
 		qcom,wakeup-enable;
@@ -1517,9 +1571,15 @@
 		qcom,ce-opp-freq = <100000000>;
 	};
 
-	qcom_seecom: qseecom@85b00000 {
+/*#ifndef VENDOR_EDIT Haitao.zhou@phone.bsp 2016-08-16 modify for fpc TEE tz app memory*/
+	/*qcom_seecom: qseecom@85b00000 {
 		compatible = "qcom,qseecom";
-		reg = <0x85b00000 0x800000>;
+		reg = <0x85b00000 0x800000>;*/
+/*#else */
+	qcom_seecom: qseecom@84a00000 {
+		compatible = "qcom,qseecom";
+		reg = <0x84a00000 0x1900000>;
+/*#endif VENDOR_EDIT */
 		reg-names = "secapp-region";
 		qcom,hlos-num-ce-hw-instances = <1>;
 		qcom,hlos-ce-hw-instance = <0>;

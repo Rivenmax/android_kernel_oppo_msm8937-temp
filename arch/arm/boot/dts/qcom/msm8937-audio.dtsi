@@ -16,6 +16,9 @@
 &int_codec {
 	qcom,model = "msm8952-snd-card-mtp";
 
+//#ifndef VENDOR_EDIT
+//Jianfeng.Qiu@Swdp.Multimedia, 2016/08/11, Modify for oppo audio config
+  /*
 	qcom,cdc-us-euro-gpios = <&tlmm 63 0>;
 	qcom,msm-mbhc-hphl-swh = <0>;
 	qcom,msm-mbhc-gnd-swh = <0>;
@@ -74,6 +77,35 @@
 	asoc-codec = <&stub_codec>, <&pm8937_cajon_dig>, <&hdmi_dba>;
 	asoc-codec-names = "msm-stub-codec.1", "cajon_codec",
 						"msm-hdmi-dba-codec-rx";
+  */
+//#else /* VENDOR_EDIT */
+	qcom,msm-mbhc-hphl-swh = <1>;
+	qcom,msm-mbhc-gnd-swh = <0>;
+	qcom,msm-hs-micbias-type = "external";
+	qcom,msm-micbias1-ext-cap;
+	qcom,msm-micbias2-ext-cap;
+
+	qcom,msm-gpios =
+		"pri_i2s";
+	qcom,pinctrl-names =
+		"all_off",
+		"pri_i2s_act";
+	pinctrl-names =
+		"all_off",
+		"pri_i2s_act";
+	pinctrl-0 = <&cdc_pdm_lines_sus
+			&cdc_pdm_lines_2_sus>;
+	pinctrl-1 = <&cdc_pdm_lines_act
+			&cdc_pdm_lines_2_act>;
+
+	asoc-codec = <&stub_codec>, <&pm8937_cajon_dig>;
+	asoc-codec-names = "msm-stub-codec.1", "cajon_codec";
+
+    oppo-spk-pa-en = <&tlmm 86 0x00>;
+    oppo-spk-boost-en = <&tlmm 85 0x00>;
+    oppo-hp-pa-en = <&tlmm 46 0x00>;
+    oppo-hp-vdd-supply = <&pm8937_l11>;
+//#endif /* VENDOR_EDIT */
 };
 
 &ext_codec {

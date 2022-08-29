@@ -34,6 +34,9 @@
 	qcom,lpm-levels {
 		compatible = "qcom,lpm-levels";
 		qcom,use-psci;
+//#ifdef VENDOR_EDIT//Fanhong.Kong@ProDrv.CHG,add 2016/12/11 for R9B2 patch1 L2 cache 		
+		qcom,l2-pc-stagger;
+//#endif/*VENDOR_EDIT*/				
 		#address-cells = <1>;
 		#size-cells = <0>;
 

@@ -293,8 +293,17 @@
 			status = "okay";
 			qcom,bcl-lm-threshold-ma = <127>;
 			qcom,bcl-mh-threshold-ma = <405>;
-			qcom,fg-iterm-ma = <150>;
-			qcom,fg-chg-iterm-ma = <100>;
+			
+//#ifndef VENDOR_EDIT
+// wenbin.liu@BSP.CHG.Gauge, 2016/09/14 
+// Delete for soc up to 100 before chg term
+//			qcom,fg-iterm-ma = <150>;
+//			qcom,fg-chg-iterm-ma = <100>;
+//else
+			qcom,fg-iterm-ma = <200>;
+			qcom,fg-chg-iterm-ma = <150>;
+//#endif /*VENDOR_EDIT*/
+
 			qcom,pmic-revid = <&pmi8937_revid>;
 			qcom,fg-cutoff-voltage-mv = <3500>;
 			qcom,cycle-counter-en;

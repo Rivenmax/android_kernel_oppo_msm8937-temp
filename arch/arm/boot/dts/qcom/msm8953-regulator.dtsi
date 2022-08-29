@@ -221,6 +221,9 @@
 			regulator-max-microvolt = <2850000>;
 			qcom,init-voltage = <2850000>;
 			status = "okay";
+//#ifdef VENDOR_EDIT//Fanhong.Kong@ProDrv.CHG,add 2016/7/14 for rf/sensor always on 			
+			regulator-always-on;
+//#endif /*VENDOR_EDIT*/			
 		};
 	};
 
@@ -287,9 +290,18 @@
 	rpm-regulator-ldoa22 {
 		status = "okay";
 		pm8953_l22: regulator-l22 {
+/*#ifndef VENDOR_EDIT
+  Modified by Zhengrong.Zhang@Camera 20160612 for camera*/
+/*
 			regulator-min-microvolt = <2800000>;
 			regulator-max-microvolt = <2800000>;
 			qcom,init-voltage = <2800000>;
+*/
+/*else*/
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			qcom,init-voltage = <1800000>;
+/*endif*/
 			status = "okay";
 		};
 	};
@@ -779,7 +791,6 @@
 
 		mem-acc-supply = <&gfx_mem_acc>;
 		qcom,mem-acc-corner-map = <1 1 1 2 2 2 2>;
-		qcom,ldo-init-voltage-adjustment = <35000 25000 0>;
 	};
 
 	eldo2_8953: eldo2 {
@@ -787,7 +798,11 @@
 		regulator-name = "eldo2_8953";
 		startup-delay-us = <0>;
 		enable-active-high;
-		gpio = <&tlmm 50 0>;
+//#ifdef VENDOR_EDIT//Fanhong.Kong@ProDrv.CHG,add 2016/6/09 for uart log	
+//		gpio = <&tlmm 50 0>;
+//#else
+		gpio = <&tlmm 64 0>;
+//#endif //VENDOR_EDIT		
 		regulator-always-on;
 	};
 

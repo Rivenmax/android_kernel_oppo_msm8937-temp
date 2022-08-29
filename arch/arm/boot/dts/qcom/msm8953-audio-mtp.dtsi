@@ -24,7 +24,8 @@
 &pm8953_diangu_analog {
 	status = "okay";
 };
-
+/*OPPO 2016-07-12 zhzhyon@AudioDriver Delete for sound config*/
+/*
 &wsa881x_i2c_e {
 	status = "okay";
 };
@@ -40,3 +41,5 @@
 &wsa881x_i2c_45 {
 	status = "okay";
 };
+*/
+/*OPPO 2016-07-12 zhzhyon@AudioDriver Delete end*/

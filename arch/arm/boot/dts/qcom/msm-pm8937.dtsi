@@ -35,7 +35,11 @@
 				"resin-bark", "kpdpwr-resin-bark";
 			qcom,pon-dbc-delay = <15625>;
 			qcom,system-reset;
-
+			//#ifdef VENDOR_EDIT
+			//Fanhong.Kong@ProDrv.CHG,add 2016/6/10 for led
+			qcom,clear-warm-reset;
+			qcom,store-hard-reset-reason;
+			//#endif
 			qcom,pon_1 {
 				qcom,pon-type = <0>;
 				qcom,pull-up = <1>;
@@ -272,6 +276,9 @@
 				qcom,fast-avg-setup = <0>;
 			};
 
+//#ifndef VENDOR_EDIT
+//wenbin.liu@SW.Bsp.Driver, 2016/08/17  modify for charger-id 
+/*
 			chan@11 {
 				label = "pa_therm1";
 				reg = <0x11>;
@@ -283,7 +290,19 @@
 				qcom,fast-avg-setup = <0>;
 				qcom,vadc-thermal-node;
 			};
-
+*/
+//#else
+			chan@11 {
+				label = "charger_id";
+				reg = <0x11>;
+				qcom,decimation = <0>;
+				qcom,pre-div-channel-scaling = <0>;
+				qcom,calibration-type = "absolute";
+				qcom,scale-function = <0>;
+				qcom,hw-settle-time = <0>;
+				qcom,fast-avg-setup = <0>;
+			};
+//#endif /*VENDOR_EDIT*/  
 			chan@32 {
 				label = "xo_therm";
 				reg = <0x32>;

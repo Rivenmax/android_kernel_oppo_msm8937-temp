@@ -25,7 +25,9 @@
 	status = "okay";
 };
 
-&wsa881x_i2c_e {
+//#ifdef VENDOR_EDIT 	
+//Fanhong.Kong@ProDrv.CHG ,2016/08/10, delete for 8940 no define
+/*&wsa881x_i2c_e {
 	status = "okay";
 };
 
@@ -39,4 +41,5 @@
 
 &wsa881x_i2c_45 {
 	status = "okay";
-};
+};*/
+//#endif VENDOR_EDIT

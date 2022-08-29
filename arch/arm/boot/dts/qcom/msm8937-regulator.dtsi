@@ -267,7 +267,19 @@
 			status = "okay";
 		};
 	};
-
+/*#ifdef VENDOR_EDIT*/
+/*jindian.Guan@Camera,2016/08/15 for camera*/
+	rpm-regulator-ldoa22 {
+		status = "okay";
+		pm8937_l22: regulator-l22 {
+			regulator-min-microvolt = <1800000>;//jindian.Guan@Camera,2016/08/15 for camera
+			regulator-max-microvolt = <1900000>;
+			qcom,init-voltage = <1800000>;
+			status = "okay";
+		};
+	};
+/*#else*/
+/*
 	rpm-regulator-ldoa22 {
 		status = "okay";
 		pm8937_l22: regulator-l22 {
@@ -277,7 +289,8 @@
 			status = "okay";
 		};
 	};
-
+*/
+/*#endif*/
 	rpm-regulator-ldoa23 {
 		status = "okay";
 		pm8937_l23: regulator-l23 {
@@ -296,6 +309,9 @@
 		pm8937_s5: spm-regulator@2000 {
 			compatible = "qcom,spm-regulator";
 			reg = <0x2000 0x100>;
+//#ifdef VENDOR_EDIT//Fanhong.Kong@ProDrv.CHG,add 2017/03/14 for MP6/R9B31 rm pwm mode			
+//                        qcom,mode = "pwm";
+//#endif/*VENDOR_EDIT*/						
 			regulator-name = "pm8937_s5";
 			regulator-min-microvolt = <1050000>;
 			regulator-max-microvolt = <1350000>;
@@ -445,5 +461,12 @@
 		enable-active-high;
 		gpio = <&pm8937_gpios 8 0>;
 	};
-
+//hantong@Bsp.Group.TP Added for synaptics using gpio supply 2v8&&1v8
+	touchpanel_vdd: touchpanel_vdd {
+		compatible = "regulator-fixed";
+		regulator-name = "touchpanel_vdd";
+		startup-delay-us = <0>;
+		enable-active-high;
+		gpio = <&tlmm 93 0>;
+	};
 };

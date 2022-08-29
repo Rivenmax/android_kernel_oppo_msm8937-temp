@@ -84,14 +84,17 @@
 			debounce-interval = <15>;
 		};
 	};
-
-	hbtp {
+	
+	//#ifdef VENDOR_EDIT
+	//Wanghao@phone.bsp.tp,del 2017/01/04 for close hbtp
+	/*hbtp {
 		compatible = "qcom,hbtp-input";
 		vcc_dig-supply = <&pm8937_l5>;
 		qcom,dig-load = <15000>;
 		qcom,dig-vtg-min = <1800000>;
 		qcom,dig-vtg-max = <1800000>;
-	};
+	};*/
+	//#endif /*VENDOR_EDIT*/
 };
 
 &tlmm {
