@@ -1773,7 +1773,7 @@ static int goodix_get_gesture_info(void *chip_data, struct gesture_info * gestur
                 break;
 
             case UP_VEE_DETECT :
-                gesture->gesture_type  = KEY_GESTURE_V;
+                gesture->gesture_type  = KEY_GESTURE_UP_VEE;
                 gesture->Point_start.x = coordinate_single[0]  | (coordinate_single[1]  << 8);
                 gesture->Point_start.y = coordinate_single[2]  | (coordinate_single[3]  << 8);
                 gesture->Point_end.x   = coordinate_single[8]  | (coordinate_single[9]  << 8);
@@ -1783,7 +1783,7 @@ static int goodix_get_gesture_info(void *chip_data, struct gesture_info * gestur
                 break;
 
             case DOWN_VEE_DETECT :
-                gesture->gesture_type  = KEY_GESTURE_INVERT_V;
+                gesture->gesture_type  = KEY_GESTURE_DOWN_VEE;
                 gesture->Point_start.x = coordinate_single[0]  | (coordinate_single[1]  << 8);
                 gesture->Point_start.y = coordinate_single[2]  | (coordinate_single[3]  << 8);
                 gesture->Point_end.x   = coordinate_single[8]  | (coordinate_single[9]  << 8);
@@ -1793,7 +1793,7 @@ static int goodix_get_gesture_info(void *chip_data, struct gesture_info * gestur
                 break;
 
             case LEFT_VEE_DETECT:
-                gesture->gesture_type = KEY_GESTURE_LEFT_V;
+                gesture->gesture_type = KEY_GESTURE_LEFT_VEE;
                 gesture->Point_start.x = coordinate_single[0]  | (coordinate_single[1]  << 8);
                 gesture->Point_start.y = coordinate_single[2]  | (coordinate_single[3]  << 8);
                 gesture->Point_end.x   = coordinate_single[8]  | (coordinate_single[9]  << 8);
@@ -1803,7 +1803,7 @@ static int goodix_get_gesture_info(void *chip_data, struct gesture_info * gestur
                 break;
 
             case RIGHT_VEE_DETECT :
-                gesture->gesture_type  = KEY_GESTURE_RIGHT_V;
+                gesture->gesture_type  = KEY_GESTURE_RIGHT_VEE;
                 gesture->Point_start.x = coordinate_single[0]  | (coordinate_single[1]  << 8);
                 gesture->Point_start.y = coordinate_single[2]  | (coordinate_single[3]  << 8);
                 gesture->Point_end.x   = coordinate_single[16] | (coordinate_single[17] << 8);

@@ -43,18 +43,18 @@
 
 #define KEY_GESTURE_UNKNOWN	0
 #define KEY_GESTURE_DOUBLE_TAP	KEY_WAKEUP // double tap
-#define KEY_GESTURE_V		KEY_F2 // V
-#define KEY_GESTURE_INVERT_V	KEY_F3 // ^
-#define KEY_GESTURE_LEFT_V	KEY_F4 // >
-#define KEY_GESTURE_RIGHT_V	KEY_F5 // <
-#define KEY_GESTURE_CIRCLE	KEY_F6 // O
-#define KEY_GESTURE_DOUBLE_SWIPE	KEY_F7 // ||
-#define KEY_GESTURE_SWIPE_RIGHT	KEY_F8 // -->
-#define KEY_GESTURE_SWIPE_LEFT	KEY_F9 // <--
-#define KEY_GESTURE_SWIPE_DOWN	KEY_F10 // |v
-#define KEY_GESTURE_SWIPE_UP	KEY_F11 // |^
-#define KEY_GESTURE_M		KEY_F12 // M
-#define KEY_GESTURE_W		KEY_F13 // W
+#define KEY_GESTURE_UP_VEE		250 // V
+#define KEY_GESTURE_DOWN_VEE	251 // ^
+#define KEY_GESTURE_LEFT_VEE	252 // >
+#define KEY_GESTURE_RIGHT_VEE	253 // <
+#define KEY_GESTURE_CIRCLE		254 // O
+#define KEY_GESTURE_DOUBLE_SWIPE	255 // ||
+#define KEY_GESTURE_SWIPE_RIGHT	256 // -->
+#define KEY_GESTURE_SWIPE_LEFT	257 // <--
+#define KEY_GESTURE_SWIPE_DOWN	258 // |v
+#define KEY_GESTURE_SWIPE_UP	259 // |^
+#define KEY_GESTURE_M		260 // M
+#define KEY_GESTURE_W		261 // W
 
 /* bit operation */
 #define SET_BIT(data, flag) ((data) |= (flag))

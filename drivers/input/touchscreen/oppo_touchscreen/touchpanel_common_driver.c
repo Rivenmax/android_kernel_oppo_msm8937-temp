@@ -209,10 +209,10 @@ static void tp_gesture_handle(struct touchpanel_data *ts)
     TPD_INFO("detect %s gesture\n",
              gesture_info_temp.gesture_type ==
              KEY_GESTURE_DOUBLE_TAP ? "double tap" : gesture_info_temp.gesture_type ==
-             KEY_GESTURE_V ? "up vee" : gesture_info_temp.gesture_type ==
-             KEY_GESTURE_INVERT_V ? "down vee" : gesture_info_temp.gesture_type ==
-             KEY_GESTURE_LEFT_V ? "(>)" : gesture_info_temp.gesture_type ==
-             KEY_GESTURE_RIGHT_V ? "(<)" : gesture_info_temp.gesture_type ==
+             KEY_GESTURE_UP_VEE ? "up vee" : gesture_info_temp.gesture_type ==
+             KEY_GESTURE_DOWN_VEE ? "down vee" : gesture_info_temp.gesture_type ==
+             KEY_GESTURE_LEFT_VEE ? "(>)" : gesture_info_temp.gesture_type ==
+             KEY_GESTURE_RIGHT_VEE ? "(<)" : gesture_info_temp.gesture_type ==
              KEY_GESTURE_CIRCLE ? "circle" : gesture_info_temp.gesture_type ==
              KEY_GESTURE_DOUBLE_SWIPE ? "(||)" : gesture_info_temp.gesture_type ==
              KEY_GESTURE_SWIPE_RIGHT ? "(-->)" : gesture_info_temp.gesture_type ==
@@ -1085,10 +1085,10 @@ static int init_input_device(struct touchpanel_data *ts)
     set_bit(BTN_TOUCH, ts->input_dev->keybit);
     if (ts->black_gesture_support) {
         set_bit(KEY_GESTURE_DOUBLE_TAP, ts->input_dev->keybit);
-        set_bit(KEY_GESTURE_V, ts->input_dev->keybit);
-        set_bit(KEY_GESTURE_INVERT_V, ts->input_dev->keybit);
-        set_bit(KEY_GESTURE_LEFT_V, ts->input_dev->keybit);
-        set_bit(KEY_GESTURE_RIGHT_V, ts->input_dev->keybit);
+        set_bit(KEY_GESTURE_UP_VEE, ts->input_dev->keybit);
+        set_bit(KEY_GESTURE_DOWN_VEE, ts->input_dev->keybit);
+        set_bit(KEY_GESTURE_LEFT_VEE, ts->input_dev->keybit);
+        set_bit(KEY_GESTURE_RIGHT_VEE, ts->input_dev->keybit);
         set_bit(KEY_GESTURE_CIRCLE, ts->input_dev->keybit);
         set_bit(KEY_GESTURE_DOUBLE_SWIPE, ts->input_dev->keybit);
         set_bit(KEY_GESTURE_SWIPE_RIGHT, ts->input_dev->keybit);
