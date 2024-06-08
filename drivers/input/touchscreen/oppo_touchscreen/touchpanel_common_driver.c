@@ -89,7 +89,7 @@ void operate_mode_switch(struct touchpanel_data *ts)
     }
     if (ts->is_suspended) {
         if (ts->black_gesture_support) {
-            if (ts->gesture_enable == 1) {
+            if (ts->gesture_enable == 1 || ts->double_tap_enable == 1) {
                 ts->ts_ops->mode_switch(ts->chip_data, MODE_GESTURE, true);
                 ts->ts_ops->mode_switch(ts->chip_data, MODE_NORMAL, true);
             } else {
@@ -223,6 +223,11 @@ static void tp_gesture_handle(struct touchpanel_data *ts)
              gesture_type ==
              KEY_GESTURE_M ? "(M)" : gesture_info_temp.gesture_type ==
              KEY_GESTURE_W ? "(W)" : "unknown");
+
+    if (!ts->double_tap_enable && gesture_info_temp.gesture_type == KEY_GESTURE_DOUBLE_TAP) {
+        TPD_INFO("Ignoring double tap as ts->double_tap_enable = %d\n", ts->double_tap_enable);
+        return;
+    }
 
     if (gesture_info_temp.gesture_type != KEY_GESTURE_UNKNOWN) {
         memcpy(&ts->gesture, &gesture_info_temp, sizeof(struct gesture_info));
@@ -409,7 +414,7 @@ static void tp_work_func(struct touchpanel_data *ts)
      *  1.IRQ_EXCEPTION /IRQ_GESTURE /IRQ_IGNORE /IRQ_FW_CONFIG --->should be only reported  individually
      *  2.IRQ_TOUCH && IRQ_BTN_KEY --->should depends on real situation && set correspond bit on trigger_reason
      */
-    cur_event = ts->ts_ops->trigger_reason(ts->chip_data, ts->gesture_enable, ts->is_suspended);
+    cur_event = ts->ts_ops->trigger_reason(ts->chip_data, ts->gesture_enable || ts->double_tap_enable, ts->is_suspended);
     if (CHK_BIT(cur_event, IRQ_TOUCH) || CHK_BIT(cur_event, IRQ_BTN_KEY)) {
         if (CHK_BIT(cur_event, IRQ_TOUCH)) {
             tp_touch_handle(ts);
@@ -466,6 +471,55 @@ int tp_gesture_enable_flag(void)
 }
 
 
+static ssize_t proc_double_tap_control_write(struct file *file, const char __user *buffer, size_t count, loff_t *ppos)
+{
+    int value = 0;
+    char buf[4] = {0};
+    struct touchpanel_data *ts = PDE_DATA(file_inode(file));
+
+    if (count > 2)
+        return count;
+    if (!ts)
+        return count;
+
+    if (copy_from_user(buf, buffer, count)) {
+        TPD_INFO("%s: read proc input error.\n", __func__);
+        return count;
+    }
+    sscanf(buf, "%d", &value);
+    if (value > 1)
+        return count;
+
+    mutex_lock(&ts->mutex);
+    if (ts->double_tap_enable != value) {
+        ts->double_tap_enable = value;
+        TPD_INFO("%s: double_tap_enable = %d, is_suspended = %d\n", __func__, ts->double_tap_enable, ts->is_suspended);
+        if (ts->is_suspended)
+            operate_mode_switch(ts);
+    }else {
+        TPD_INFO("%s: do not do same operator :%d\n", __func__, value);
+    }
+    mutex_unlock(&ts->mutex);
+
+    return count;
+}
+
+static ssize_t proc_double_tap_control_read(struct file *file, char __user *user_buf, size_t count, loff_t *ppos)
+{
+    int ret = 0;
+    char page[4] = {0};
+    struct touchpanel_data *ts = PDE_DATA(file_inode(file));
+
+    if (!ts)
+        return count;
+
+    TPD_DEBUG("double tap enable is: %d\n", ts->double_tap_enable);
+    ret = sprintf(page, "%d\n", ts->double_tap_enable);
+    ret = simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
+
+    return ret;
+}
+
 /*
  *    gesture_enable = 0 : disable gesture
  *    gesture_enable = 1 : enable gesture when ps is far away
@@ -513,7 +567,7 @@ static ssize_t proc_gesture_control_read(struct file *file, char __user *user_bu
     if (!ts)
         return count;
 
-    TPD_DEBUG("double tap enable is: %d\n", ts->gesture_enable);
+    TPD_DEBUG("gesture_enable = %d\n", ts->gesture_enable);
     ret = sprintf(page, "%d\n", ts->gesture_enable);
     ret = simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
 
@@ -539,6 +593,13 @@ static ssize_t proc_coordinate_read(struct file *file, char __user *user_buf, si
 
     return ret;
 }
+
+static const struct file_operations proc_double_tap_control_fops = {
+    .write = proc_double_tap_control_write,
+    .read  = proc_double_tap_control_read,
+    .open  = simple_open,
+    .owner = THIS_MODULE,
+};
 
 static const struct file_operations proc_gesture_control_fops = {
     .write = proc_gesture_control_write,
@@ -1015,6 +1076,11 @@ static int init_touchpanel_proc(struct touchpanel_data *ts)
     //proc files-step2-4:/proc/touchpanel/gesture_enable (black gesture related interface)
     if (ts->black_gesture_support) {
         prEntry_tmp = proc_create_data("gesture_enable", 0666, prEntry_tp, &proc_gesture_control_fops, ts);
+        if (prEntry_tmp == NULL) {
+            ret = -ENOMEM;
+            TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__, __LINE__);
+        }
+        prEntry_tmp = proc_create_data("double_tap_enable", 0666, prEntry_tp, &proc_double_tap_control_fops, ts);
         if (prEntry_tmp == NULL) {
             ret = -ENOMEM;
             TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__, __LINE__);
@@ -1735,6 +1801,7 @@ int register_common_touch_device(struct touchpanel_data *pdata)
     ts->i2c_ready = true;
     ts->loading_fw = false;
     ts->is_suspended = 0;
+    ts->double_tap_enable = 0;
     ts->gesture_enable = 1;
     ts->glove_enable = 0;
     ts->view_area_touched = 0;
@@ -1823,7 +1890,7 @@ static int tp_suspend(struct device *dev)
 
     //step5:gesture mode status process
     if (ts->black_gesture_support) {
-        if (ts->gesture_enable == 1) {
+        if (ts->gesture_enable == 1 || ts->double_tap_enable == 1) {
             ts->ts_ops->mode_switch(ts->chip_data, MODE_GESTURE, true);
             goto EXIT;
         }
@@ -1951,7 +2018,7 @@ void tp_i2c_suspend(struct touchpanel_data *ts)
 {
     ts->i2c_ready = false;
     if (ts->black_gesture_support) {
-        if (ts->gesture_enable == 1) {
+        if (ts->gesture_enable == 1 || ts->double_tap_enable == 1) {
             /*enable gpio wake system through interrupt*/
             enable_irq_wake(ts->irq);
         }
@@ -1962,7 +2029,7 @@ void tp_i2c_suspend(struct touchpanel_data *ts)
 void tp_i2c_resume(struct touchpanel_data *ts)
 {
     if (ts->black_gesture_support) {
-        if (ts->gesture_enable == 1) {
+        if (ts->gesture_enable == 1 || ts->double_tap_enable == 1) {
             /*disable gpio wake system through intterrupt*/
             disable_irq_wake(ts->irq);
         }

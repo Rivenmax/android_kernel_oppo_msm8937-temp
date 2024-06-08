@@ -238,6 +238,7 @@ struct touchpanel_data {
     uint32_t irq_flags;                                 /*irq setting flag*/
     int irq;                                            /*irq num*/
 
+    int double_tap_enable;                              /*control state of double tap to wake*/
     int gesture_enable;                                 /*control state of black gesture*/
     int glove_enable;                                   /*control state of glove gesture*/
     int limit_enable;                                   /*control state of edge limit*/
