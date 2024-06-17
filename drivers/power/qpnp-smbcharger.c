@@ -8357,9 +8357,12 @@ static int smbchg_check_chg_version(struct smbchg_chip *chip)
 			ARRAY_SIZE(aicl_rerun_period_schg_lite);
 
 		chip->schg_version = QPNP_SCHG_LITE;
+
+#ifdef CONFIG_MACH_OPPO_MSM8940
 		/* PMI8937/PMI8940 doesn't support HVDCP */
 		if ((pmic_rev_id->pmic_subtype == PMI8937)
 			|| (pmic_rev_id->pmic_subtype == PMI8940))
+#endif
 			chip->hvdcp_not_supported = true;
 		break;
 	case PMI8996:
