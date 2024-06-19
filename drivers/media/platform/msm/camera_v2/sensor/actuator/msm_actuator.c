@@ -29,6 +29,12 @@ DEFINE_MSM_MUTEX(msm_actuator_mutex);
 #define PARK_LENS_LONG_STEP 7
 #define PARK_LENS_MID_STEP 5
 #define PARK_LENS_SMALL_STEP 3
+#ifdef CONFIG_MACH_OPPO
+/* For tick sound of parking lens */
+#define PARK_LENS_FIRST_STEP   100
+#define PARK_LENS_ONE_STEP   35
+#define PARK_LENS_MIN_STEPS 25
+#endif
 #define MAX_QVALUE 4096
 
 static struct v4l2_file_operations msm_actuator_v4l2_subdev_fops;
@@ -173,6 +179,9 @@ static int msm_actuator_bivcm_handle_i2c_ops(
 	uint32_t size = a_ctrl->reg_tbl_size, i = 0;
 	int32_t rc = 0;
 	struct msm_camera_i2c_reg_array i2c_tbl;
+#ifdef CONFIG_MACH_OPPO
+	struct msm_camera_i2c_reg_array *i2c_tbl_temp = a_ctrl->i2c_reg_tbl;
+#endif
 	struct msm_camera_i2c_reg_setting reg_setting;
 	enum msm_camera_i2c_reg_addr_type save_addr_type =
 		a_ctrl->i2c_client.addr_type;
@@ -188,16 +197,43 @@ static int msm_actuator_bivcm_handle_i2c_ops(
 			if (write_arr[i].reg_addr != 0xFFFF) {
 				i2c_byte1 = write_arr[i].reg_addr;
 				i2c_byte2 = value;
+#ifdef CONFIG_MACH_OPPO
+				if (size != (i + 1)) {
+					i2c_byte2 = value & 0xFF;
+					CDBG("byte1:0x%x, byte2:0x%x\n",
+						 i2c_byte1, i2c_byte2);
+					i2c_tbl_temp[a_ctrl->i2c_tbl_index].
+					reg_addr = i2c_byte1;
+					i2c_tbl_temp[a_ctrl->i2c_tbl_index].
+					reg_data = i2c_byte2;
+					i2c_tbl_temp[a_ctrl->i2c_tbl_index].
+					delay = 0;
+					a_ctrl->i2c_tbl_index++;
+					i++;
+					i2c_byte1 = write_arr[i].reg_addr;
+					i2c_byte2 = (value & 0xFF00) >> 8;
+				}
+#endif
 			} else {
 				i2c_byte1 = (value & 0xFF00) >> 8;
 				i2c_byte2 = value & 0xFF;
 			}
+#ifdef CONFIG_MACH_OPPO
+			i2c_tbl_temp[a_ctrl->i2c_tbl_index].reg_addr = i2c_byte1;
+			i2c_tbl_temp[a_ctrl->i2c_tbl_index].reg_data = i2c_byte2;
+			i2c_tbl_temp[a_ctrl->i2c_tbl_index].delay = delay;
+#else
 			i2c_tbl.reg_addr = i2c_byte1;
 			i2c_tbl.reg_data = i2c_byte2;
 			i2c_tbl.delay = delay;
+#endif
 			a_ctrl->i2c_tbl_index++;
 
+#ifdef CONFIG_MACH_OPPO
+			reg_setting.reg_setting = i2c_tbl_temp;
+#else
 			reg_setting.reg_setting = &i2c_tbl;
+#endif
 			reg_setting.data_type = a_ctrl->i2c_data_type;
 			rc = a_ctrl->i2c_client.
 				i2c_func_tbl->i2c_write_table_w_microdelay(
@@ -586,6 +622,13 @@ static int32_t msm_actuator_move_focus(
 	int32_t num_steps = move_params->num_steps;
 	struct msm_camera_i2c_reg_setting reg_setting;
 
+#ifdef CONFIG_MACH_OPPO
+	/* For avoid NULL pointer operation */
+	if (a_ctrl->step_position_table == NULL) {
+		pr_err("Step Position Table is NULL");
+		return -EFAULT;
+	}
+#endif
 	CDBG("called, dir %d, num_steps %d\n", dir, num_steps);
 
 	if (dest_step_pos == a_ctrl->curr_step_pos)
@@ -834,6 +877,8 @@ static int32_t msm_actuator_park_lens(struct msm_actuator_ctrl_t *a_ctrl)
 		a_ctrl->park_lens.max_step = a_ctrl->max_code_size;
 
 	next_lens_pos = a_ctrl->step_position_table[a_ctrl->curr_step_pos];
+#ifndef CONFIG_MACH_OPPO
+	/* For tick sound of parking lens */
 	while (next_lens_pos) {
 		/* conditions which help to reduce park lens time */
 		if (next_lens_pos > (a_ctrl->park_lens.max_step *
@@ -877,6 +922,58 @@ static int32_t msm_actuator_park_lens(struct msm_actuator_ctrl_t *a_ctrl)
 		/* Use typical damping time delay to avoid tick sound */
 		usleep_range(10000, 12000);
 	}
+#else
+	if (a_ctrl->deinit_reg_setting.size > 0) {
+		rc = a_ctrl->i2c_client.i2c_func_tbl->
+			i2c_write_table_w_microdelay(
+			&a_ctrl->i2c_client, &a_ctrl->deinit_reg_setting);
+		if (rc < 0) {
+			pr_err("%s Failed I2C write Line %d\n",
+				__func__, __LINE__);
+			return rc;
+		}
+		a_ctrl->i2c_tbl_index = 0;
+	} else {
+		pr_err("%s no deinit_reg_setting %d\n",
+			__func__, __LINE__);
+	}
+
+	while (next_lens_pos > a_ctrl->initial_code / 2) {
+		if (next_lens_pos > a_ctrl->initial_code + PARK_LENS_FIRST_STEP) {
+			next_lens_pos = a_ctrl->initial_code + PARK_LENS_FIRST_STEP;
+		} else if (next_lens_pos > a_ctrl->initial_code/2
+			&& next_lens_pos > PARK_LENS_ONE_STEP) {
+			next_lens_pos -= PARK_LENS_ONE_STEP;
+		} else {
+			next_lens_pos = PARK_LENS_MIN_STEPS;
+		}
+
+		a_ctrl->func_tbl->actuator_parse_i2c_params(a_ctrl,
+			next_lens_pos, a_ctrl->park_lens.hw_params,
+			a_ctrl->park_lens.damping_delay);
+
+		reg_setting.reg_setting = a_ctrl->i2c_reg_tbl;
+		reg_setting.size = a_ctrl->i2c_tbl_index;
+		reg_setting.data_type = a_ctrl->i2c_data_type;
+		reg_setting.reg_setting->delay = a_ctrl->deinit_reg_setting.delay;
+
+		CDBG("next_lens_pos %d, delay %d, total_steps %d, initial_code %d\n",
+			next_lens_pos, reg_setting.reg_setting->delay, a_ctrl->total_steps, a_ctrl->initial_code);
+		rc = a_ctrl->i2c_client.i2c_func_tbl->
+			i2c_write_table_w_microdelay(
+			&a_ctrl->i2c_client, &reg_setting);
+		if (rc < 0) {
+			pr_err("%s Failed I2C write Line %d\n",
+				__func__, __LINE__);
+			return rc;
+		}
+		CDBG("next_lens_pos %d done\n", next_lens_pos);
+		a_ctrl->i2c_tbl_index = 0;
+
+		if (next_lens_pos <= PARK_LENS_MIN_STEPS)
+			break;
+	}
+#endif
 
 	return 0;
 }
@@ -989,9 +1086,18 @@ static int32_t msm_actuator_init_step_table(struct msm_actuator_ctrl_t *a_ctrl,
 
 	a_ctrl->max_code_size = max_code_size;
 
+#ifdef CONFIG_MACH_OPPO
+	/* For avoid NULL pointer operation */
+	/* free the step_position_table to allocate a new one */
+	if (a_ctrl->step_position_table != NULL)
+		kfree(a_ctrl->step_position_table);
+	a_ctrl->step_position_table = NULL;
+
+#else
 	/* free the step_position_table to allocate a new one */
 	kfree(a_ctrl->step_position_table);
 	a_ctrl->step_position_table = NULL;
+#endif
 
 	if (set_info->af_tuning_params.total_steps
 		>  MAX_ACTUATOR_AF_TOTAL_STEPS) {
@@ -1268,6 +1374,10 @@ static int32_t msm_actuator_bivcm_set_position(
 static int32_t msm_actuator_set_param(struct msm_actuator_ctrl_t *a_ctrl,
 	struct msm_actuator_set_info_t *set_info) {
 	struct reg_settings_t *init_settings = NULL;
+#ifdef CONFIG_MACH_OPPO
+	/* For park lens */
+	struct reg_settings_t *deinit_settings = NULL;
+#endif
 	int32_t rc = -EFAULT;
 	uint16_t i = 0;
 	struct msm_camera_cci_client *cci_client = NULL;
@@ -1391,6 +1501,50 @@ static int32_t msm_actuator_set_param(struct msm_actuator_ctrl_t *a_ctrl,
 			}
 		}
 	}
+
+#ifdef CONFIG_MACH_OPPO
+	/* For park lens */
+	if (set_info->actuator_params.deinit_setting_size
+		&& set_info->actuator_params.deinit_setting_size <= MAX_ACTUATOR_INIT_SET) {
+		deinit_settings = kmalloc(sizeof(struct reg_settings_t) *
+			(set_info->actuator_params.deinit_setting_size),
+			GFP_KERNEL);
+		if (deinit_settings == NULL) {
+			kfree(a_ctrl->i2c_reg_tbl);
+			a_ctrl->i2c_reg_tbl = NULL;
+			pr_err("Error allocating memory for deinit_settings\n");
+			return -EFAULT;
+		}
+		if (copy_from_user(deinit_settings,
+			(void *)set_info->actuator_params.deinit_settings,
+			set_info->actuator_params.deinit_setting_size *
+			sizeof(struct reg_settings_t))) {
+			kfree(deinit_settings);
+			kfree(a_ctrl->i2c_reg_tbl);
+			a_ctrl->i2c_reg_tbl = NULL;
+			pr_err("Error copying deinit_settings\n");
+			return -EFAULT;
+		}
+		a_ctrl->deinit_reg_setting.reg_setting = kmalloc(sizeof(struct msm_camera_i2c_reg_array) *
+			(set_info->actuator_params.deinit_setting_size),
+			GFP_KERNEL);
+		for (i = 0; i < set_info->actuator_params.deinit_setting_size; i++) {
+			a_ctrl->deinit_reg_setting.reg_setting[i].reg_addr = deinit_settings[i].reg_addr;
+			a_ctrl->deinit_reg_setting.reg_setting[i].reg_data = deinit_settings[i].reg_data;
+			a_ctrl->deinit_reg_setting.reg_setting[i].delay = 1000;
+		}
+		a_ctrl->deinit_reg_setting.addr_type = deinit_settings[i-1].addr_type;
+		a_ctrl->deinit_reg_setting.data_type = deinit_settings[i-1].data_type;
+		a_ctrl->deinit_reg_setting.size = set_info->actuator_params.deinit_setting_size;
+		a_ctrl->deinit_reg_setting.delay = deinit_settings[i-1].delay;
+		kfree(deinit_settings);
+		CDBG("addr_type %d, data_type %d, size %d, delay %d\n",
+			a_ctrl->deinit_reg_setting.addr_type,
+			a_ctrl->deinit_reg_setting.data_type,
+			a_ctrl->deinit_reg_setting.size,
+			a_ctrl->deinit_reg_setting.delay);
+	}
+#endif
 
 	/* Park lens data */
 	a_ctrl->park_lens = set_info->actuator_params.park_lens;
@@ -1673,6 +1827,20 @@ static long msm_actuator_subdev_do_ioctl(
 				compat_ptr(
 				u32->cfg.set_info.actuator_params
 				.init_settings);
+
+#ifdef CONFIG_MACH_OPPO
+			/* For park lens */
+			actuator_data.cfg.set_info.actuator_params
+				.deinit_setting_size =
+				u32->cfg.set_info.actuator_params
+				.deinit_setting_size;
+
+			actuator_data.cfg.set_info.actuator_params
+				.deinit_settings =
+				compat_ptr(
+				u32->cfg.set_info.actuator_params
+				.deinit_settings);
+#endif
 
 			actuator_data.cfg.set_info.af_tuning_params
 				.initial_code =
@@ -1966,6 +2134,8 @@ static int32_t msm_actuator_platform_probe(struct platform_device *pdev)
 			return rc;
 		}
 	}
+
+#ifndef CONFIG_MACH_OPPO
 	rc = msm_sensor_driver_get_gpio_data(&(msm_actuator_t->gconf),
 		(&pdev->dev)->of_node);
 	if (-ENODEV == rc) {
@@ -1981,6 +2151,7 @@ static int32_t msm_actuator_platform_probe(struct platform_device *pdev)
 			msm_actuator_t->cam_pinctrl_status = 0;
 		}
 	}
+#endif
 
 	msm_actuator_t->act_v4l2_subdev_ops = &msm_actuator_subdev_ops;
 	msm_actuator_t->actuator_mutex = &msm_actuator_mutex;
@@ -2110,7 +2281,12 @@ static struct msm_actuator msm_hvcm_actuator_table = {
 		.actuator_init_focus = msm_actuator_init_focus,
 		.actuator_parse_i2c_params = msm_actuator_parse_i2c_params,
 		.actuator_set_position = msm_actuator_set_position,
+#ifndef CONFIG_MACH_OPPO
+		/* For park lens directly for hvcm */
 		.actuator_park_lens = msm_actuator_park_lens,
+#else
+		.actuator_park_lens = NULL,
+#endif
 	},
 };
 

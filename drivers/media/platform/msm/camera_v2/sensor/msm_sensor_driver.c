@@ -26,6 +26,17 @@
 
 static struct v4l2_file_operations msm_sensor_v4l2_subdev_fops;
 static int32_t msm_sensor_driver_platform_probe(struct platform_device *pdev);
+#ifdef CONFIG_MACH_OPPO
+/* For module vendor info */
+extern int size_of_module_list;
+extern int size_of_sensor_list;
+extern uint16_t rear_sensor;
+extern uint16_t rear_module;
+extern uint16_t front_sensor;
+extern uint16_t front_module;
+extern struct int_string_pair cam_module_info[];
+extern struct int_string_pair cam_sensor_info[];
+#endif
 
 /* Static declaration */
 static struct msm_sensor_ctrl_t *g_sctrl[MAX_CAMERAS];
@@ -152,6 +163,16 @@ static int32_t msm_sensor_driver_create_v4l_subdev
 	s_ctrl->msm_sd.sd.entity.group_id = MSM_CAMERA_SUBDEV_SENSOR;
 	s_ctrl->msm_sd.sd.entity.name = s_ctrl->msm_sd.sd.name;
 	s_ctrl->msm_sd.close_seq = MSM_SD_CLOSE_2ND_CATEGORY | 0x3;
+#ifdef CONFIG_MACH_OPPO
+	/* Add for AT test */
+	if (s_ctrl->sensordata->sensor_info->position == 0) /* back sensor */
+	    s_ctrl->msm_sd.sd.entity.revision = 1;
+	else if (s_ctrl->sensordata->sensor_info->position == 1) /* sub sensor */
+	    s_ctrl->msm_sd.sd.entity.revision = 2;
+	else
+	    s_ctrl->msm_sd.sd.entity.revision = 0;
+	CDBG("subdev name [%s], revision[%d] \n", s_ctrl->msm_sd.sd.name, s_ctrl->msm_sd.sd.entity.revision);
+#endif
 	rc = msm_sd_register(&s_ctrl->msm_sd);
 	if (rc < 0) {
 		pr_err("failed: msm_sd_register rc %d", rc);
@@ -690,6 +711,10 @@ int32_t msm_sensor_driver_probe(void *setting,
 
 	unsigned long                        mount_pos = 0;
 	uint32_t                             is_yuv;
+#ifdef CONFIG_MACH_OPPO
+	/* For module vendor info */
+	int i = 0;
+#endif
 
 	/* Validate input parameters */
 	if (!setting) {
@@ -844,7 +869,30 @@ int32_t msm_sensor_driver_probe(void *setting,
 			pr_err("slot %d has some other sensor\n",
 				slave_info->camera_id);
 
+#ifdef CONFIG_MACH_OPPO
+		/* Need match sensorID in sensor and eeprom */
+		for (i = 0; i < size_of_sensor_list; i++) {
+			if (strcmp(cam_sensor_info[i].string, s_ctrl->sensordata->sensor_name) == 0) {
+				if (((s_ctrl->sensordata->sensor_info->position == 0)
+					&& (cam_sensor_info[i].value == rear_sensor))
+					|| (rear_sensor == 0))
+					break;
+				else if (((s_ctrl->sensordata->sensor_info->position == 1)
+					&& (cam_sensor_info[i].value == front_sensor))
+					|| (front_sensor == 0))
+					break;
+			}
+		}
+		if (i >= size_of_sensor_list)
+			rc = -ENODEV;
+		else
+			rc = 0;
+
+		pr_err("%s:%d: %s mached result %d\n",
+			__func__, __LINE__, slave_info->sensor_name, rc);
+#else
 		rc = 0;
+#endif
 		goto free_slave_info;
 	}
 
@@ -968,6 +1016,22 @@ CSID_TG:
 	}
 
 	pr_err("%s probe succeeded", slave_info->sensor_name);
+
+
+
+#ifdef CONFIG_MACH_OPPO
+	/* For 3p8 and 3p3sp compatibility */
+	if (strcmp(slave_info->sensor_name, "s5k3p3sp") == 0) {
+		int i = 0;
+		for (i = 0; i < s_ctrl->sensordata->power_info.num_vreg; i++) {
+			if (!strcmp(s_ctrl->sensordata->power_info.cam_vreg[i].reg_name, "cam_vdig")) {
+				s_ctrl->sensordata->power_info.cam_vreg[i].min_voltage = 1200000;
+				s_ctrl->sensordata->power_info.cam_vreg[i].max_voltage = 1200000;
+			break;
+			}
+		}
+	}
+#endif
 
 	s_ctrl->bypass_video_node_creation =
 		slave_info->bypass_video_node_creation;
