@@ -1,5 +1,5 @@
 /**************************************************************
- * Copyright (c)  2008- 2030  Oppo Mobile communication Corp.ltd.£¬
+ * Copyright (c)  2008- 2030  Oppo Mobile communication Corp.ltd.
  * VENDOR_EDIT
  * File       : touchpanel_common_driver.c
  * Description: Source file for Touch common driver
@@ -1391,7 +1391,7 @@ static void init_parse_dts(struct device *dev, struct touchpanel_data *ts)
             }
         }
     }
-    // We can Add callback fuction here if necessary £¨seprate some dts config for chip_data£©
+    // We can Add callback fuction here if necessary seprate some dts config for chip_data
 }
 
 int init_power_control(struct touchpanel_data *ts)
