@@ -634,6 +634,11 @@ int msm_camera_set_gpio_table(struct msm_gpio_set_tbl *gpio_tbl,
 	return rc;
 }
 
+#ifdef CONFIG_MACH_OPPO
+/* For cam vio ctrl */
+extern bool cam_vio_enabled;
+#endif
+
 int msm_camera_config_single_vreg(struct device *dev,
 	struct camera_vreg_t *cam_vreg, struct regulator **reg_ptr, int config)
 {
@@ -696,6 +701,13 @@ int msm_camera_config_single_vreg(struct device *dev,
 				vreg_name);
 			goto vreg_unconfig;
 		}
+
+#ifdef CONFIG_MACH_OPPO
+		if (strcmp(vreg_name, "cam_vio") == 0) {
+			pr_info("%s: %d enable cam_vio\n", __func__, __LINE__);
+			cam_vio_enabled = true;
+		}
+#endif
 	} else {
 		CDBG("%s disable %s\n", __func__, vreg_name);
 		if (*reg_ptr) {
@@ -709,6 +721,14 @@ int msm_camera_config_single_vreg(struct device *dev,
 			}
 			regulator_put(*reg_ptr);
 			*reg_ptr = NULL;
+
+#ifdef CONFIG_MACH_OPPO
+/* For cam vio ctrl */
+			if (strcmp(vreg_name, "cam_vio") == 0) {
+				pr_info("%s: %d disable cam_vio\n", __func__, __LINE__);
+				cam_vio_enabled = false;
+			}
+#endif
 		} else {
 			pr_err("%s can't disable %s\n", __func__, vreg_name);
 		}

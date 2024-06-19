@@ -62,7 +62,12 @@
 #define FALSE  0
 
 #define MAX_LANE_COUNT 4
+#ifndef CONFIG_MACH_OPPO
+/* For csid reset timeout */
 #define CSID_TIMEOUT msecs_to_jiffies(100)
+#else
+#define CSID_TIMEOUT msecs_to_jiffies(500)
+#endif
 
 #undef CDBG
 #define CDBG(fmt, args...) pr_debug(fmt, ##args)
@@ -542,8 +547,14 @@ static int msm_csid_init(struct csid_device *csid_dev, uint32_t *csid_version)
 		return rc;
 	}
 
+#ifndef CONFIG_MACH_OPPO
+/*modified by Jinshui.Liu@Camera 20160827 for [less log]*/
 	pr_info("%s: CSID_VERSION = 0x%x\n", __func__,
 		csid_dev->ctrl_reg->csid_reg.csid_version);
+#else
+	CDBG("%s: CSID_VERSION = 0x%x\n", __func__,
+		csid_dev->ctrl_reg->csid_reg.csid_version);
+#endif
 	/* power up */
 	rc = msm_camera_config_vreg(&csid_dev->pdev->dev, csid_dev->csid_vreg,
 		csid_dev->regulator_count, NULL, 0,

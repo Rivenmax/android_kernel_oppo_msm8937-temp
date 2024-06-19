@@ -439,6 +439,11 @@ struct msm_actuator_params_t {
 	struct msm_actuator_reg_params_t *reg_tbl_params;
 	struct reg_settings_t *init_settings;
 	struct park_lens_data_t park_lens;
+#ifdef CONFIG_MACH_OPPO
+	/* For park lens */
+	uint16_t deinit_setting_size;
+	struct reg_settings_t *deinit_settings;
+#endif
 };
 
 struct msm_actuator_set_info_t {
