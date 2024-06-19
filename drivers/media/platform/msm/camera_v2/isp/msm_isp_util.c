@@ -2237,6 +2237,10 @@ int msm_isp_open_node(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 {
 	struct vfe_device *vfe_dev = v4l2_get_subdevdata(sd);
 	long rc = 0;
+#ifdef CONFIG_MACH_OPPO
+	/* For vfe reset hardware retry */
+	int retry_cnt = 0;
+#endif
 
 	ISP_DBG("%s open_cnt %u\n", __func__, vfe_dev->vfe_open_cnt);
 
@@ -2280,7 +2284,19 @@ int msm_isp_open_node(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 
 	vfe_dev->vfe_hw_version = msm_camera_io_r(vfe_dev->vfe_base);
 	ISP_DBG("%s: HW Version: 0x%x\n", __func__, vfe_dev->vfe_hw_version);
+#ifndef CONFIG_MACH_OPPO
+	/* For vfe reset hardware retry */
 	rc = vfe_dev->hw_info->vfe_ops.core_ops.reset_hw(vfe_dev, 1, 1);
+#else
+	do {
+		rc = vfe_dev->hw_info->vfe_ops.core_ops.reset_hw(vfe_dev, 1, 1);
+		if (rc<=0)
+		{
+			pr_err("%s: reset timeout retry_cnt [%d] \n", __func__, retry_cnt);
+			msleep(100);
+		}
+	} while(rc<=0 && retry_cnt++<3);
+#endif
 	if (rc <= 0) {
 		pr_err("%s: reset timeout\n", __func__);
 		vfe_dev->hw_info->vfe_ops.core_ops.release_hw(vfe_dev);
