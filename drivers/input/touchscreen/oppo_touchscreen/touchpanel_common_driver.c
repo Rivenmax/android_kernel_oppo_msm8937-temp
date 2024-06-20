@@ -1941,7 +1941,7 @@ int register_common_touch_device(struct touchpanel_data *pdata)
     ts->double_tap_enable = 0;
     ts->gesture_enable = 0;
     ts->glove_enable = 0;
-    ts->touchkey_enable = 0;
+    ts->touchkey_enable = 1;
     ts->touchkey_reverse_enable = 0;
     ts->view_area_touched = 0;
     g_tp = ts;
