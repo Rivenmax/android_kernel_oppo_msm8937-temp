@@ -104,7 +104,7 @@ static int16_t delta_baseline[30][30];
  static unsigned int tp_debug = 0;
 static int force_update = 0;
 static int key_reverse = 0;
-static int key_enable = 0;
+static int key_enable = 1;
 static struct synaptics_ts_data *ts_g = NULL;
 int test_err = 0;
 #if defined(CONFIG_OPPO_DAILY_BUILD)
