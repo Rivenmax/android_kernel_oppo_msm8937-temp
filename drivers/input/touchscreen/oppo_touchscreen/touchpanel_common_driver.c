@@ -387,15 +387,20 @@ static void tp_btnkey_handle(struct touchpanel_data *ts)
 
         return;
     }
+
     touch_state = ts->ts_ops->get_keycode(ts->chip_data);
     TPD_INFO("%s touc_state is %d\n", __func__, touch_state);
 
-    if (CHK_BIT(ts->vk_bitmap, BIT_MENU))
-        input_report_key_oppo(ts->input_dev, KEY_MENU, CHK_BIT(touch_state, BIT_MENU));
-    if (CHK_BIT(ts->vk_bitmap, BIT_HOME))
-        input_report_key_oppo(ts->input_dev, KEY_HOMEPAGE, CHK_BIT(touch_state, BIT_HOME));
-    if (CHK_BIT(ts->vk_bitmap, BIT_BACK))
-        input_report_key_oppo(ts->input_dev, KEY_BACK, CHK_BIT(touch_state, BIT_BACK));
+    if (ts->touchkey_enable) {
+        if (CHK_BIT(ts->vk_bitmap, BIT_MENU))
+            input_report_key_oppo(ts->input_dev, KEY_MENU, CHK_BIT(touch_state, BIT_MENU));
+        if (CHK_BIT(ts->vk_bitmap, BIT_HOME))
+            input_report_key_oppo(ts->input_dev, KEY_HOMEPAGE, CHK_BIT(touch_state, BIT_HOME));
+        if (CHK_BIT(ts->vk_bitmap, BIT_BACK))
+            input_report_key_oppo(ts->input_dev, KEY_BACK, CHK_BIT(touch_state, BIT_BACK));
+    } else {
+        TPD_DEBUG("touchkeys are disabled\n");
+    }
     input_sync(ts->input_dev);
 }
 
@@ -526,6 +531,55 @@ static ssize_t proc_double_tap_control_read(struct file *file, char __user *user
     return ret;
 }
 
+static ssize_t proc_touchkey_control_write(struct file *file, const char __user *buffer, size_t count, loff_t *ppos)
+{
+    int value = 0;
+    char buf[4] = {0};
+    struct touchpanel_data *ts = PDE_DATA(file_inode(file));
+
+    if (count > 2)
+        return count;
+    if (!ts)
+        return count;
+
+    if (copy_from_user(buf, buffer, count)) {
+        TPD_INFO("%s: read proc input error.\n", __func__);
+        return count;
+    }
+    sscanf(buf, "%d", &value);
+    if (value > 1)
+        return count;
+
+    mutex_lock(&ts->mutex);
+    if (ts->touchkey_enable != value) {
+        ts->touchkey_enable = value;
+        TPD_INFO("%s: touchkey_enable = %d, is_suspended = %d\n", __func__, ts->touchkey_enable, ts->is_suspended);
+        if (ts->is_suspended)
+            operate_mode_switch(ts);
+    }else {
+        TPD_INFO("%s: do not do same operator :%d\n", __func__, value);
+    }
+    mutex_unlock(&ts->mutex);
+
+    return count;
+}
+
+static ssize_t proc_touchkey_control_read(struct file *file, char __user *user_buf, size_t count, loff_t *ppos)
+{
+    int ret = 0;
+    char page[4] = {0};
+    struct touchpanel_data *ts = PDE_DATA(file_inode(file));
+
+    if (!ts)
+        return count;
+
+    TPD_DEBUG("touchkey enable is: %d\n", ts->touchkey_enable);
+    ret = snprintf(page, sizeof(page), "%d\n", ts->touchkey_enable);
+    ret = simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
+
+    return ret;
+}
+
 /*
  *    gesture_enable = 0 : disable gesture
  *    gesture_enable = 1 : enable gesture when ps is far away
@@ -599,6 +653,13 @@ static ssize_t proc_coordinate_read(struct file *file, char __user *user_buf, si
 
     return ret;
 }
+
+static const struct file_operations proc_touchkey_control_fops = {
+    .write = proc_touchkey_control_write,
+    .read  = proc_touchkey_control_read,
+    .open  = simple_open,
+    .owner = THIS_MODULE,
+};
 
 static const struct file_operations proc_double_tap_control_fops = {
     .write = proc_double_tap_control_write,
@@ -1063,6 +1124,15 @@ static int init_touchpanel_proc(struct touchpanel_data *ts)
     if (prEntry_tmp == NULL) {
         ret = -ENOMEM;
         TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__, __LINE__);
+    }
+
+    //proc file for controling touchkeys
+    if (ts->vk_type == TYPE_AREA_SEPRATE) {
+        prEntry_tmp = proc_create_data("touchkey_enable", 0664, prEntry_tp, &proc_touchkey_control_fops, ts);
+        if (prEntry_tmp == NULL) {
+            ret = -ENOMEM;
+            TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__, __LINE__);
+        }
     }
 
     //proc files-step2-3:/proc/touchpanel/oppo_tp_fw_update (edge limit control interface)
@@ -1810,6 +1880,7 @@ int register_common_touch_device(struct touchpanel_data *pdata)
     ts->double_tap_enable = 0;
     ts->gesture_enable = 0;
     ts->glove_enable = 0;
+    ts->touchkey_enable = 0;
     ts->view_area_touched = 0;
     g_tp = ts;
     TPD_INFO("Touch panel probe : normal end\n");
