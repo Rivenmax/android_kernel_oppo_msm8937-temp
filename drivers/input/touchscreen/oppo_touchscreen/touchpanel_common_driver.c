@@ -365,11 +365,11 @@ static void tp_touch_handle(struct touchpanel_data *ts)
 
 static void tp_btnkey_release(struct touchpanel_data *ts) {
     if (CHK_BIT(ts->vk_bitmap, BIT_MENU))
-        input_report_key_oppo(ts->input_dev, KEY_MENU, 0);
+        input_report_key_oppo(ts, KEY_MENU, 0);
     if (CHK_BIT(ts->vk_bitmap, BIT_HOME))
-        input_report_key_oppo(ts->input_dev, KEY_HOMEPAGE, 0);
+        input_report_key_oppo(ts, KEY_HOMEPAGE, 0);
     if (CHK_BIT(ts->vk_bitmap, BIT_BACK))
-        input_report_key_oppo(ts->input_dev, KEY_BACK, 0);
+        input_report_key_oppo(ts, KEY_BACK, 0);
     input_sync(ts->input_dev);
 }
 
@@ -393,11 +393,11 @@ static void tp_btnkey_handle(struct touchpanel_data *ts)
 
     if (ts->touchkey_enable) {
         if (CHK_BIT(ts->vk_bitmap, BIT_MENU))
-            input_report_key_oppo(ts->input_dev, KEY_MENU, CHK_BIT(touch_state, BIT_MENU));
+            input_report_key_oppo(ts, KEY_MENU, CHK_BIT(touch_state, BIT_MENU));
         if (CHK_BIT(ts->vk_bitmap, BIT_HOME))
-            input_report_key_oppo(ts->input_dev, KEY_HOMEPAGE, CHK_BIT(touch_state, BIT_HOME));
+            input_report_key_oppo(ts, KEY_HOMEPAGE, CHK_BIT(touch_state, BIT_HOME));
         if (CHK_BIT(ts->vk_bitmap, BIT_BACK))
-            input_report_key_oppo(ts->input_dev, KEY_BACK, CHK_BIT(touch_state, BIT_BACK));
+            input_report_key_oppo(ts, KEY_BACK, CHK_BIT(touch_state, BIT_BACK));
     } else {
         TPD_DEBUG("touchkeys are disabled\n");
     }
@@ -580,6 +580,55 @@ static ssize_t proc_touchkey_control_read(struct file *file, char __user *user_b
     return ret;
 }
 
+static ssize_t proc_touchkey_reverse_control_write(struct file *file, const char __user *buffer, size_t count, loff_t *ppos)
+{
+    int value = 0;
+    char buf[4] = {0};
+    struct touchpanel_data *ts = PDE_DATA(file_inode(file));
+
+    if (count > 2)
+        return count;
+    if (!ts)
+        return count;
+
+    if (copy_from_user(buf, buffer, count)) {
+        TPD_INFO("%s: read proc input error.\n", __func__);
+        return count;
+    }
+    sscanf(buf, "%d", &value);
+    if (value > 1)
+        return count;
+
+    mutex_lock(&ts->mutex);
+    if (ts->touchkey_reverse_enable != value) {
+        ts->touchkey_reverse_enable = value;
+        TPD_INFO("%s: touchkey_reverse_enable = %d, is_suspended = %d\n", __func__, ts->touchkey_reverse_enable, ts->is_suspended);
+        if (ts->is_suspended)
+            operate_mode_switch(ts);
+    }else {
+        TPD_INFO("%s: do not do same operator :%d\n", __func__, value);
+    }
+    mutex_unlock(&ts->mutex);
+
+    return count;
+}
+
+static ssize_t proc_touchkey_reverse_control_read(struct file *file, char __user *user_buf, size_t count, loff_t *ppos)
+{
+    int ret = 0;
+    char page[4] = {0};
+    struct touchpanel_data *ts = PDE_DATA(file_inode(file));
+
+    if (!ts)
+        return count;
+
+    TPD_DEBUG("touchkey reverse enable is: %d\n", ts->touchkey_reverse_enable);
+    ret = snprintf(page, sizeof(page), "%d\n", ts->touchkey_reverse_enable);
+    ret = simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
+
+    return ret;
+}
+
 /*
  *    gesture_enable = 0 : disable gesture
  *    gesture_enable = 1 : enable gesture when ps is far away
@@ -657,6 +706,13 @@ static ssize_t proc_coordinate_read(struct file *file, char __user *user_buf, si
 static const struct file_operations proc_touchkey_control_fops = {
     .write = proc_touchkey_control_write,
     .read  = proc_touchkey_control_read,
+    .open  = simple_open,
+    .owner = THIS_MODULE,
+};
+
+static const struct file_operations proc_touchkey_reverse_control_fops = {
+    .write = proc_touchkey_reverse_control_write,
+    .read  = proc_touchkey_reverse_control_read,
     .open  = simple_open,
     .owner = THIS_MODULE,
 };
@@ -1129,6 +1185,11 @@ static int init_touchpanel_proc(struct touchpanel_data *ts)
     //proc file for controling touchkeys
     if (ts->vk_type == TYPE_AREA_SEPRATE) {
         prEntry_tmp = proc_create_data("touchkey_enable", 0664, prEntry_tp, &proc_touchkey_control_fops, ts);
+        if (prEntry_tmp == NULL) {
+            ret = -ENOMEM;
+            TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__, __LINE__);
+        }
+        prEntry_tmp = proc_create_data("touchkey_reverse_enable", 0664, prEntry_tp, &proc_touchkey_reverse_control_fops, ts);
         if (prEntry_tmp == NULL) {
             ret = -ENOMEM;
             TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__, __LINE__);
@@ -1881,6 +1942,7 @@ int register_common_touch_device(struct touchpanel_data *pdata)
     ts->gesture_enable = 0;
     ts->glove_enable = 0;
     ts->touchkey_enable = 0;
+    ts->touchkey_reverse_enable = 0;
     ts->view_area_touched = 0;
     g_tp = ts;
     TPD_INFO("Touch panel probe : normal end\n");
@@ -2141,17 +2203,27 @@ int common_touch_data_free(struct touchpanel_data *pdata)
  * before report virtual key, detect whether touch_area has been touched
  * Do not care the result: Return void type
  */
-void input_report_key_oppo(struct input_dev *dev, unsigned int code, int value)
+void input_report_key_oppo(struct touchpanel_data *ts, unsigned int code, int value)
 {
     if (value) {//report Key[down]
         if (g_tp) {
             if (g_tp->view_area_touched == 0) {
-                input_report_key(dev, code, value);
+                goto report_keys;
             } else {
                 TPD_INFO("sorry, tp is touch down, can not report touch key\n");
             }
         }
     } else {
-        input_report_key(dev, code, value);
+        goto report_keys;
+    }
+
+report_keys:
+    if (ts->touchkey_reverse_enable) {
+        if (code == KEY_MENU)
+            input_report_key(ts->input_dev, KEY_BACK, value);
+        if (code == KEY_BACK)
+            input_report_key(ts->input_dev, KEY_MENU, value);
+    } else {
+        input_report_key(ts->input_dev, code, value);
     }
 }

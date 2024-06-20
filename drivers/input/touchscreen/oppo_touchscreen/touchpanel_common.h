@@ -239,6 +239,7 @@ struct touchpanel_data {
     int irq;                                            /*irq num*/
 
     int touchkey_enable;                                /*control state of touchkeys*/
+    int touchkey_reverse_enable;                        /*control state of touchkeys reversal*/
     int double_tap_enable;                              /*control state of double tap to wake*/
     int gesture_enable;                                 /*control state of black gesture*/
     int glove_enable;                                   /*control state of glove gesture*/
@@ -321,7 +322,7 @@ int  tp_powercontrol_1v8(struct hw_resource *hw_res, bool on);
 int  tp_powercontrol_2v8(struct hw_resource *hw_res, bool on);
 
 void operate_mode_switch  (struct touchpanel_data *ts);
-void input_report_key_oppo(struct input_dev *dev, unsigned int code, int value);
+void input_report_key_oppo(struct touchpanel_data *ts, unsigned int code, int value);
 void esd_handle_switch(struct esd_information *esd_info, bool on);
 void tp_touch_btnkey_release(void);
 
