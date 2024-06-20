@@ -104,6 +104,7 @@ static int16_t delta_baseline[30][30];
  static unsigned int tp_debug = 0;
 static int force_update = 0;
 static int key_reverse = 0;
+static int key_enable = 0;
 static struct synaptics_ts_data *ts_g = NULL;
 int test_err = 0;
 #if defined(CONFIG_OPPO_DAILY_BUILD)
@@ -866,7 +867,11 @@ static void synaptics_ts_report(struct synaptics_ts_data *ts )
     uint8_t status = 0;
     uint8_t inte = 0;
    // TPD_ERR("%s is call \n",__func__);
-	
+
+	if (!key_enable) {
+		goto END;
+	}
+
     if( ts->enable_remote) {
         goto END;
     }
@@ -1062,6 +1067,44 @@ const struct file_operations proc_reverse_key =
 	.open		= synaptics_s1302_key_reverse_open,
 	.read		= seq_read,
 	.write      = synaptics_s1302_key_reverse_write,
+	.llseek 	= seq_lseek,
+	.release	= single_release,
+};
+static ssize_t synaptics_s1302_key_enable_write(struct file *file, const char __user *page, size_t t, loff_t *lo)
+{
+	int ret = 0;
+	char buf[10];
+
+	if( t > 2)
+		return t;
+	if( copy_from_user(buf, page, t) ){
+		TPD_ERR("%s: read proc input error.\n", __func__);
+		return t;
+	}
+
+	sscanf(buf, "%d", &ret);
+	TPD_ERR("%s key_enable:%d\n",__func__,ret);
+	if( (ret == 0 )||(ret == 1) )
+	{
+		key_enable = ret;
+	}
+	return t;
+}
+static int synaptics_s1302_key_enable_show(struct seq_file *seq, void *offset)
+{
+	seq_printf(seq, "s1302 key enable %s\n",key_enable?("true"):("false"));
+	return 0 ;
+}
+static int synaptics_s1302_key_enable_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, synaptics_s1302_key_reverse_show, inode->i_private);
+}
+const struct file_operations proc_enable_key =
+{
+	.owner		= THIS_MODULE,
+	.open		= synaptics_s1302_key_enable_open,
+	.read		= seq_read,
+	.write      = synaptics_s1302_key_enable_write,
 	.llseek 	= seq_lseek,
 	.release	= single_release,
 };
@@ -1742,6 +1785,7 @@ static int synaptics_s1302_proc(void)
     //for firmware version
     proc_entry = proc_create_data("fw_update", 0444, procdir,&proc_firmware_update,NULL);
     proc_entry = proc_create_data("key_rep", 0666, procdir,&proc_reverse_key,NULL);
+	proc_entry = proc_create_data("key_enable", 0666, procdir,&proc_enable_key,NULL);
     proc_entry = proc_create_data("radd", 0666, procdir,&proc_radd,NULL);
     proc_entry = proc_create_data("reset", 0666, procdir,&proc_reset,NULL);
     proc_entry = proc_create_data("oppo_tp_debug", 0666, procdir,&proc_debug,NULL);
