@@ -31,6 +31,7 @@
  * as published by the Free Software Foundation.
  */
 
+#include <linux/atomic.h>
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/gpio.h>
@@ -52,11 +53,6 @@
 #define FPC1020_RESET_HIGH2_US		1250
 #define FPC_TTW_HOLD_TIME			1000
 #define FPC_IRQ_WAKELOCK_TIMEOUT	500
-
-#define WAKELOCK_DISABLE			0
-#define WAKELOCK_ENABLE				1
-#define WAKELOCK_TIMEOUT_ENABLE		2
-#define WAKELOCK_TIMEOUT_DISABLE	3
 
 struct vreg_config {
 	char *name;
@@ -84,6 +80,7 @@ struct fpc1020_data {
 	struct wake_lock		fpc_wl;
 	struct wake_lock		fpc_irq_wl;
 	struct regulator		*vreg[ARRAY_SIZE(vreg_conf)];
+	atomic_t wakeup_enabled; /* Used both in ISR and non-ISR */
 };
 
 static int fpc1020_request_named_gpio(struct fpc1020_data *fpc1020,
@@ -267,20 +264,20 @@ static ssize_t irq_enable_get(struct device* dev,
 	return scnprintf(buffer, PAGE_SIZE, "%i\n",fpc1020->irq_enabled);
 }
 
-static ssize_t wakelock_enable_set(struct device *dev,
+/**
+ * sysfs node for controlling whether the driver is allowed
+ * to wake up the platform on interrupt.
+ */
+static ssize_t wakeup_enable_set(struct device *dev,
 	struct device_attribute *attribute, const char *buffer, size_t count)
 {
 	int op = 0;
 	struct fpc1020_data *fpc1020 = dev_get_drvdata(dev);
-	if (sscanf(buffer, "%d", &op) == 1) {
-		if (op == WAKELOCK_ENABLE)
-			 wake_lock(&fpc1020->fpc_wl);
-		else if (op == WAKELOCK_DISABLE)
-			 wake_unlock(&fpc1020->fpc_wl);
-		else if (op == WAKELOCK_TIMEOUT_ENABLE)
-			 wake_lock_timeout(&fpc1020->ttw_wl, msecs_to_jiffies(FPC_TTW_HOLD_TIME));
-		else if (op == WAKELOCK_TIMEOUT_DISABLE)
-			 wake_unlock(&fpc1020->ttw_wl);
+
+	if (!strncmp(buffer, "enable", strlen("enable"))) {
+		atomic_set(&fpc1020->wakeup_enabled, 1);
+	} else if (!strncmp(buffer, "disable", strlen("disable"))) {
+		atomic_set(&fpc1020->wakeup_enabled, 0);
 	} else {
 		dev_err(dev, "invalid content: '%s', length = %zd\n", buffer, count);
 		return -EINVAL;
@@ -292,13 +289,13 @@ static ssize_t wakelock_enable_set(struct device *dev,
 static DEVICE_ATTR(irq, S_IRUSR | S_IWUSR, irq_get, irq_ack);
 static DEVICE_ATTR(regulator_enable, S_IWUSR, NULL, regulator_enable_set);
 static DEVICE_ATTR(irq_enable, S_IWUSR, irq_enable_get, irq_enable_set);
-static DEVICE_ATTR(wakelock_enable, S_IWUSR, NULL, wakelock_enable_set);
+static DEVICE_ATTR(wakeup_enable, S_IWUSR, NULL, wakeup_enable_set);
 
 static struct attribute *attributes[] = {
 	&dev_attr_irq.attr,
 	&dev_attr_regulator_enable.attr,
 	&dev_attr_irq_enable.attr,
-	&dev_attr_wakelock_enable.attr,
+	&dev_attr_wakeup_enable.attr,
 	NULL
 };
 
@@ -315,7 +312,9 @@ static irqreturn_t fpc1020_irq_handler(int irq, void *handle)
 	** since this is interrupt context (other thread...) */
 	smp_rmb();
 
-	wake_lock_timeout(&fpc1020->fpc_irq_wl, msecs_to_jiffies(FPC_IRQ_WAKELOCK_TIMEOUT));
+	if (atomic_read(&fpc1020->wakeup_enabled)) {
+		wake_lock_timeout(&fpc1020->fpc_irq_wl, msecs_to_jiffies(FPC_IRQ_WAKELOCK_TIMEOUT));
+	}
 
 	sysfs_notify(&fpc1020->dev->kobj, NULL, dev_attr_irq.attr.name);
 
@@ -375,6 +374,8 @@ static int fpc1020_probe(struct platform_device *pdev)
 
 	disable_irq_nosync(gpio_to_irq(fpc1020->irq_gpio));
 	fpc1020->irq_enabled = 0;
+
+	atomic_set(&fpc1020->wakeup_enabled, 0);
 
 	wake_lock_init(&fpc1020->ttw_wl, WAKE_LOCK_SUSPEND, "fpc_ttw_wl");
 	wake_lock_init(&fpc1020->fpc_wl, WAKE_LOCK_SUSPEND, "fpc_wl");
