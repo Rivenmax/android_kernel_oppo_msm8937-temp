@@ -840,4 +840,8 @@ config INPUT_FPC1020
        tristate "FPC_BTP fingerprint sensor support"
        depends on SPI_MASTER
 
+config BTP_GDX
+       default n
+       tristate "GDX_BTP fingerprint sensor support"
+
 endif
