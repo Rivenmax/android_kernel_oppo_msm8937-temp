@@ -306,6 +306,7 @@ Optional Properties:
 				the parallel slave supports AICL.
 - qcom,parallel-min-main-icl-ma	Minimum ICL allotted to main charger in parallel
 				configuration.
+- qcom,hvdcp-not-supported	A boolean property to indicate that HVDCP is not supported.
 
 Example:
 	qcom,qpnp-smbcharger {

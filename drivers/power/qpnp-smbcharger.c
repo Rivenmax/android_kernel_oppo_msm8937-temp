@@ -7977,6 +7977,9 @@ static int smb_parse_dt(struct smbchg_chip *chip)
 	chip->cfg_override_usb_current = of_property_read_bool(node,
 				"qcom,override-usb-current");
 
+	chip->hvdcp_not_supported = of_property_read_bool(node,
+				"qcom,hvdcp-not-supported");
+
 	return 0;
 }
 
