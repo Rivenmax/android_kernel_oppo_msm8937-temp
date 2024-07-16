@@ -152,49 +152,6 @@
 		qcom,clock-rates = <24000000 0>;
 	};
 
-	eeprom3: qcom,eeprom@3 {
-		cell-index = <0>;
-		reg = <0xa0>;
-		qcom,eeprom-name = "ov13855_gt24c64";
-		compatible = "qcom,eeprom";
-		qcom,slave-addr = <0xa0>;
-		qcom,cci-master = <0>;
-		qcom,num-blocks = <1>;
-		qcom,i2c-freq-mode =<1>;
-
-		qcom,page0 = <0 0 0 0 0 0>;
-		qcom,poll0 = <0 0 0 0 0 0>;
-		qcom,saddr0 = <0xa0>;
-		qcom,mem0 = <8192 0x0000 2 0 1 0>;
-
-		cam_vio-supply = <&pm8937_l22>;
-		qcom,cam-vreg-name = "cam_vio";
-		qcom,cam-vreg-min-voltage = <1800000>;
-		qcom,cam-vreg-max-voltage = <1800000>;
-		qcom,cam-vreg-op-mode = <0>;
-		pinctrl-names = "cam_default", "cam_suspend";
-		pinctrl-0 = <&cam_sensor_mclk0_default
-				&cam_sensor_rear_default
-				&cam_sensor_rear_vana>;
-		pinctrl-1 = <&cam_sensor_mclk0_sleep &cam_sensor_rear_sleep
-				&cam_sensor_rear_vana_sleep>;
-		gpios = <&tlmm 41 0>;
-		qcom,gpio-vana = <0>;
-		qcom,gpio-req-tbl-num = <0>;
-		qcom,gpio-req-tbl-flags = <0>;
-		qcom,gpio-req-tbl-label = "CAM_VANA";
-
-		qcom,cam-power-seq-type = "sensor_vreg", "sensor_gpio";
-		qcom,cam-power-seq-val = "cam_vio", "sensor_gpio_vana";
-		qcom,cam-power-seq-cfg-val = <1 1>;
-		qcom,cam-power-seq-delay = <1 5>;
-		status = "ok";
-		clocks = <&clock_gcc clk_mclk0_clk_src>,
-			<&clock_gcc clk_gcc_camss_mclk0_clk>;
-		clock-names = "cam_src_clk", "cam_clk";
-		qcom,clock-rates = <24000000 0>;
-	};
-	
 	qcom,camera@0 {
 		cell-index = <0>;
 		compatible = "qcom,camera";
@@ -204,7 +161,7 @@
 		qcom,mount-angle = <90>;
 		qcom,actuator-src = <&actuator0>;
 		qcom,led-flash-src = <&led_flash0>;
-		qcom,eeprom-src = <&eeprom0 &eeprom2 &eeprom3>;
+		qcom,eeprom-src = <&eeprom0 &eeprom2>;
 		cam_vdig-supply = <&pm8937_l23>;
 		cam_vio-supply = <&pm8937_l22>;
 		cam_vaf-supply = <&pm8937_l17>;
