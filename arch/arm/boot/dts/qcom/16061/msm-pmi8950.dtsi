@@ -44,8 +44,6 @@
 			qcom,vchg_sns-vadc = <&pmi8950_vadc>;
 			qcom,vchg-adc-channel-id = <3>;
 			qcom,resume-delta-mv = <100>;
-			qcom,dc-psy-type = "Mains";
-			qcom,dc-psy-ma = <2000>;
 			qcom,hvdcp-not-supported;
 		};
 
