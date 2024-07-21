@@ -111,3 +111,4 @@ obj-$(CONFIG_TOUCHSCREEN_EKTF3XXX_CHIPSET) += ektf3xxx/
 obj-$(CONFIG_TOUCHSCREEN_RAYDIUM_CHIPSET)  += raydium_wt030/
 
 obj-$(CONFIG_TOUCHPANEL_OPPO) += oppo_touchscreen/
+obj-$(CONFIG_SYNAPTICS_OPPO) += synaptics_oppo/
