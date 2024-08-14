@@ -45,6 +45,8 @@
 	qcom,battery-data = <&mtp_batterydata>;
 	qcom,chg-led-sw-controls;
 	qcom,chg-led-support;
+	qcom,dcin-vadc = <&pmi8950_vadc>;
+	dpdm-supply = <&usb_otg>;
 };
 
 &mdss_dsi0 {
