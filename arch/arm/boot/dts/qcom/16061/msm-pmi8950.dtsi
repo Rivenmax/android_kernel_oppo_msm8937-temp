@@ -31,40 +31,43 @@
 		};
 
 		pmi8950_charger: qcom,qpnp-smbcharger {
+			/delete-property/ qcom,chg-inhibit-fg;
 			/delete-property/ qcom,parallel-usb-min-current-ma;
 			/delete-property/ qcom,parallel-usb-9v-min-current-ma;
 			/delete-property/ qcom,parallel-allowed-lowering-ma;
 
+			qcom,iterm-ma = <150>;
 			qcom,float-voltage-mv = <4370>;
+			qcom,resume-delta-mv = <100>;
+			qcom,thermal-mitigation = <2000 1500 1000 800>;
 			qcom,fastchg-current-ma = <2000>;
 			qcom,fastchg-current-comp = <1200>;
-			qcom,iterm-ma = <150>;
-			qcom,recharge-mv = <100>;
-			qcom,thermal-mitigation = <2000 1500 1000 800>;
 			qcom,vchg_sns-vadc = <&pmi8950_vadc>;
 			qcom,vchg-adc-channel-id = <3>;
-			qcom,resume-delta-mv = <100>;
 			qcom,dc-psy-type = "Mains";
 			qcom,dc-psy-ma = <2000>;
 			qcom,hvdcp-not-supported;
 		};
 
 		pmi8950_fg: qcom,fg {
-			qcom,resume-soc = <99>;
-			qcom,fg-iterm-ma = <200>;
+			/* Battery */
+			/delete-property/ qcom,resume-soc;
+			qcom,resume-soc-raw = <254>;
 			qcom,fg-chg-iterm-ma = <150>;
+			qcom,fg-cutoff-voltage-mv = <3400>;
+			qcom,irq-volt-empty-mv = <3200>;
 			qcom,fg-cc-cv-threshold-mv = <4360>;
 			qcom,vbat-estimate-diff-mv = <240>;
-			qcom,ext-sense-type;
 			qcom,hold-soc-while-full;
-			qcom,warm-bat-decidegc = <500>;
-			qcom,cool-bat-decidegc = <1>;
-			qcom,hot-bat-decidegc = <600>;
+
+			/* Thermals */
+			qcom,ext-sense-type;
 			qcom,cold-bat-decidegc = <0>;
-			qcom,fg-cutoff-voltage-mv = <3400>;
+			qcom,cool-bat-decidegc = <1>;
+			qcom,warm-bat-decidegc = <500>;
+			qcom,hot-bat-decidegc = <600>;
 			qcom,thermal-coefficients = [da 86 f0 50 08 3c];
 			qcom,fg-therm-delay-us = <10240>;
-			qcom,irq-volt-empty-mv = <3350>;
 		};
 	};
 
