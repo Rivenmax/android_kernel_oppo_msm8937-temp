@@ -849,7 +849,17 @@ static ssize_t proc_debug_control_read(struct file *file, char __user *buf, size
 static ssize_t proc_debug_control_write(struct file *file, const char __user *buf, size_t count, loff_t *lo)
 {
     int tmp = 0;
-    if (1 == sscanf(buf, "%d", &tmp)) {
+    char buffer[4] = {0};
+
+    if (count > 2)
+        return count;
+
+    if (copy_from_user(buffer, buf, count)) {
+        TPD_INFO("%s: read proc input error.\n", __func__);
+        return count;
+    }
+
+    if (1 == sscanf(buffer, "%d", &tmp)) {
         tp_debug = tmp;
     } else {
         TPD_DEBUG("invalid content: '%s', length = %zd\n", buf, count);
@@ -985,6 +995,7 @@ static ssize_t proc_fw_update_write(struct file *file, const char __user *page, 
     const struct firmware *fw = NULL;
     int ret;
     int val = 0;
+    char buf[4] = {0};
     struct touchpanel_data *ts = PDE_DATA(file_inode(file));
     int count_tmp = 0;
 
@@ -998,7 +1009,12 @@ static ssize_t proc_fw_update_write(struct file *file, const char __user *page, 
         return size;
     }
 
-    sscanf(page, "%d", &val);
+    if (copy_from_user(buf, page, size)) {
+        TPD_INFO("%s: read proc input error.\n", __func__);
+        return size;
+    }
+
+    sscanf(buf, "%d", &val);
 
     if (!val)
         val = ts->force_update;
@@ -1088,12 +1104,20 @@ static const struct file_operations proc_finger_protect_result= {
 static ssize_t proc_finger_protect_trigger_write(struct file *file, const char __user *buffer, size_t count, loff_t *ppos)
 {
     int op = 0;
+    char buf[4] = {0};
     struct touchpanel_data *ts = PDE_DATA(file_inode(file));
 
     if (count > 2)
         return -EINVAL;
+    if (!ts)
+        return count;
 
-    if(1 == sscanf(buffer, "%d", &op)) {
+    if (copy_from_user(buf, buffer, count)) {
+        TPD_INFO("%s: read proc input error.\n", __func__);
+        return count;
+    }
+
+    if(1 == sscanf(buf, "%d", &op)) {
         if (op == 1) {
             TPD_INFO("-->%s\n", __func__);
             ts->spuri_fp_touch.fp_trigger= true;
