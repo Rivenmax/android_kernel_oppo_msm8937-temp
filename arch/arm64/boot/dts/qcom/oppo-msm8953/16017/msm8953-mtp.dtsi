@@ -36,6 +36,7 @@
 
 &i2c_3 { /* BLSP1 QUP3 */
 	synaptics15018@20 {
+		compatible = "synaptics-s3508";
 		synaptics,tx-rx-num = <16 28>;
 		vcc_i2c_1v8-supply = <&pm8953_l6>;
 	};

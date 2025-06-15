@@ -124,7 +124,6 @@
 
 &i2c_3 { /* BLSP1 QUP3 */
 	synaptics15018@20 {
-		compatible = "synaptics-s3508";
 		reg = <0x20>;
 		interrupt-parent = <&tlmm>;
 		interrupts = <17 0x2008>;

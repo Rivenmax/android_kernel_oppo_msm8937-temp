@@ -41,6 +41,7 @@
 
 &i2c_3 { /* BLSP1 QUP3 */
 	synaptics15018@20 {
+		compatible = "synaptics-s3320";
 		synaptics,tx-rx-num = <18 32>;
 		synaptics,enable1v8-gpio = <&tlmm 134 0x1>;
 	};
