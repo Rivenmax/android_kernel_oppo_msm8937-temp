@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2008-2012, OPPO Mobile Comm Corp., Ltd
- * Copyright (c) 2025 Ricky Cheung <rcheung844@gmail.com>
+ * Copyright (c) 2025-2026 Ricky Cheung <rcheung844@gmail.com>
  */
 
 #ifndef _OPPO_VOOC_H_
@@ -25,13 +25,18 @@ struct oppo_vooc_device {
 	struct device *dev;
 	struct mutex lock;
 
-	struct delayed_work vooc_poll_work;
-	struct workqueue_struct *vooc_poll_wq;
+	struct power_supply *batt_psy;
+	struct notifier_block nb;
+
+	struct work_struct vooc_poll_work;
+	struct work_struct adapter_update_work;
+	struct work_struct power_supply_changed_work;
 
 	struct gpio_descs *switch_gpios;
 	struct gpio_desc *reset_gpio;
 	struct gpio_desc *clock_gpio;
 	struct gpio_desc *data_gpio;
+	int data_irq;
 
 	int fw_data_version;
 
