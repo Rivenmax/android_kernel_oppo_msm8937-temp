@@ -162,6 +162,8 @@
 		compatible = "oppo,stm8s-vooc";
 		reg = <0x26>;
 
+		vooc,firmware-variant = "4400mv";
+
 		switch-gpios = <&tlmm 50 GPIO_ACTIVE_HIGH>,
 			       <&tlmm 9 GPIO_ACTIVE_HIGH>;
 		reset-gpios = <&tlmm 94 GPIO_ACTIVE_HIGH>;
