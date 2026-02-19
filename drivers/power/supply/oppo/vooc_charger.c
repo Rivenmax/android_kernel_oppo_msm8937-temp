@@ -4,17 +4,27 @@
  * Copyright (c) 2025-2026 Ricky Cheung <rcheung844@gmail.com>
  */
 
-#include <linux/module.h>
+#define DEBUG
+
+#include <asm-generic/errno.h>
+#include <linux/delay.h>
+#include <linux/firmware.h>
+#include <linux/gpio/consumer.h>
 #include <linux/i2c.h>
 #include <linux/interrupt.h>
-#include <linux/gpio/consumer.h>
-#include <linux/power_supply.h>
-#include <linux/delay.h>
+#include <linux/module.h>
 #include <linux/mutex.h>
 #include <linux/of.h>
+#include <linux/of_device.h>
+#include <linux/power_supply.h>
+#include <linux/swab.h>
 
 #include <linux/power/oppo_gauge.h>
 #include <linux/power/oppo_vooc.h>
+
+static char *fw_name = "vooc_fw.bin";
+module_param(fw_name, charp, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(fw_name, "OPPO VOOC microcontroller (MCU) firmware name.");
 
 void vooc_set_fast_charge_enabled(struct oppo_vooc_device *vooc, bool enabled)
 {
@@ -74,8 +84,6 @@ static void vooc_reset_mcu(struct oppo_vooc_device *vooc)
 	usleep_range(5000, 5000);
 	gpiod_set_value_cansleep(vooc->reset_gpio, 1);
 	usleep_range(10000, 10000);
-	gpiod_set_value_cansleep(vooc->reset_gpio, 0);
-	usleep_range(5000, 5000);
 }
 
 static void vooc_poll_func(struct work_struct *work)
@@ -134,8 +142,8 @@ static void vooc_poll_func(struct work_struct *work)
 		break;
 	case VOOC_NOTIFY_FIRMWARE_UPDATE:
 	case VOOC_NOTIFY_ADAPTER_FW_UPDATE:
-		// TODO: Implement firmware update
 		dev_info(dev, "chip reported for fw update\n");
+		schedule_work(&vooc->vooc_mcu_update_work);
 		break;
 	default:
 		dev_err(dev, "received errornous data: 0x%x\n", data);
@@ -158,24 +166,473 @@ static irqreturn_t vooc_irq_rx_handler(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-static void adapter_update_func(struct work_struct *work)
+static void vooc_mcu_firmware_loaded(const struct firmware *fw,
+				    void *context)
 {
-	struct oppo_vooc_device *vooc = container_of(work,
-			struct oppo_vooc_device, adapter_update_work);
+	unsigned char *fw_data;
+	struct oppo_vooc_device *vooc = context;
+	int fw_size;
 
-	msleep(20);
-	vooc_set_fast_charge_enabled(vooc, false);
-	vooc_reset_mcu(vooc);
+	if (!fw) {
+		dev_err(vooc->dev, "Failed to read %s\n", fw_name);
+		return;
+	}
+
+	mutex_lock(&vooc->lock);
+	if (vooc->fw_data == NULL) {
+		fw_data = devm_kzalloc(vooc->dev, fw->size, GFP_KERNEL);
+		if (fw_data == NULL) {
+			mutex_unlock(&vooc->lock);
+			release_firmware(fw);
+			dev_err(vooc->dev, "Error allocating memory\n");
+			return;
+		}
+
+		fw_size = fw->size;
+		memcpy(fw_data, fw->data, fw_size);
+		release_firmware(fw);
+
+		vooc->fw_data = fw_data;
+		vooc->fw_data_count = fw_size;
+		vooc->fw_data_version = fw_data[fw_size - 4];
+	} else {
+		dev_dbg(vooc->dev, "firmware file already loaded...\n");
+		fw_data = vooc->fw_data;
+		release_firmware(fw);
+	}
+	mutex_unlock(&vooc->lock);
+}
+
+static int vooc_load_mcu_firmware(struct oppo_vooc_device *vooc)
+{
+	return request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
+				       fw_name, vooc->dev, GFP_KERNEL,
+				       vooc, vooc_mcu_firmware_loaded);
+}
+
+/* PIC16F MCU Firmware Management */
+static int mcu_pic16f_check_firmware(struct oppo_vooc_device *vooc)
+{
+	unsigned char addr_buf[2], data_buf[32];
+	unsigned int current_addr, target_addr;
+	int rc, i, fw_line = 0;
+
+	if (vooc->fw_data == NULL)
+		return -ENODATA;
+
+	memcpy(addr_buf, (unsigned char[]){0x02, 0x00}, 2);
+	memset(data_buf, 0, sizeof(data_buf));
+	rc = i2c_smbus_write_i2c_block_data(vooc->client, VOOC_REG_SET, 2, &addr_buf[0]);
+	if (rc < 0) {
+		dev_err(vooc->dev, "i2c write failed %d, rc = %d\n", __LINE__, rc);
+		return rc;
+	}
+	msleep(10);
+
+	for (i = 0; i < MCU_PIC16F_READ_COUNT; i++) {
+		i2c_smbus_read_i2c_block_data(vooc->client, VOOC_REG_READ, 16, &data_buf[0]);
+		msleep(2);
+		i2c_smbus_read_i2c_block_data(vooc->client, VOOC_REG_READ, 16, &data_buf[16]);
+
+		current_addr = 0x200 + (i * 16);
+		target_addr = (vooc->fw_data[fw_line * 34 + 1] << 8) | vooc->fw_data[fw_line * 34];
+		if (current_addr != target_addr)
+			continue;
+
+		if (memcmp(data_buf, &vooc->fw_data[fw_line * 34 + 2], 32) != 0) {
+			dev_err(vooc->dev, "comparison failed %d\n", __LINE__);
+			return -EINVAL;
+		}
+
+		fw_line++;
+	}
+
+	return 0;
+}
+
+static int mcu_pic16f_erase_firmware(struct oppo_vooc_device *vooc)
+{
+	unsigned char zero_buf[1], addr_buf[2], temp_buf[1];
+	unsigned int addr = 0x200;
+	int rc = 0, i;
+
+	memcpy(addr_buf, (unsigned char[]){0x02, 0x00}, 2);
+	memset(zero_buf, 0, sizeof(zero_buf));
+	memset(temp_buf, 0, sizeof(temp_buf));
+
+	// Erase 0x10 words at a time
+	for (i = 0; i < MCU_PIC16F_ERASE_COUNT; i++) {
+		dev_dbg(vooc->dev, "erase addr = 0x%x\n", addr);
+
+		rc = i2c_smbus_write_i2c_block_data(vooc->client, VOOC_REG_SET, 2, &addr_buf[0]);
+		if (rc < 0) {
+			dev_err(vooc->dev, "i2c write failed %d, rc = %d\n", __LINE__, rc);
+			return rc;
+		}
+
+		i2c_smbus_write_i2c_block_data(vooc->client, VOOC_REG_ERASE, 1, &zero_buf[0]);
+		msleep(1);
+		i2c_smbus_read_i2c_block_data(vooc->client, VOOC_REG_ERASE, 1, &temp_buf[0]);
+		dev_dbg(vooc->dev, "i2c read %d, temp_buf = 0x%x\n", __LINE__, temp_buf[0]);
+
+		addr = addr + 0x10;
+		addr_buf[0] = addr >> 8;
+		addr_buf[1] = addr & 0xFF;
+	}
+
+	return 0;
+}
+
+static int mcu_pic16f_write_firmware(struct oppo_vooc_device *vooc,
+				     unsigned int offset, unsigned int length)
+{
+	unsigned int count = offset;
+	unsigned char zero_buf[1], addr_buf[2], temp_buf[1];
+	unsigned char *data_buf;
+	int rc = 0, i;
+
+	if (!vooc->fw_data)
+		return -ENODATA;
+
+	data_buf = devm_kmalloc(vooc->dev, 32, GFP_KERNEL);
+	if (!data_buf)
+		return -ENOMEM;
+
+	memset(zero_buf, 0, sizeof(zero_buf));
+	memset(temp_buf, 0, sizeof(temp_buf));
+
+	while (count < (offset + length)) {
+		dev_dbg(vooc->dev, "write count %d\n", count);
+
+		addr_buf[0] = vooc->fw_data[count + 1];
+		addr_buf[1] = vooc->fw_data[count];
+
+		rc = i2c_smbus_write_i2c_block_data(vooc->client, VOOC_REG_SET, 2, &addr_buf[0]);
+		if (rc < 0) {
+			dev_err(vooc->dev, "i2c write failed %d, rc = %d\n", __LINE__, rc);
+			devm_kfree(vooc->dev, (void *)data_buf);
+			return rc;
+		}
+
+		memcpy(data_buf, &vooc->fw_data[count + 2], 32);
+		for (i = 0; i < 32; i += 2) {
+			swab16s((u16 *)(data_buf + i));
+		}
+
+		i2c_smbus_write_i2c_block_data(vooc->client, VOOC_REG_WRITE, 16, data_buf);
+		i2c_smbus_write_i2c_block_data(vooc->client, VOOC_REG_REPORT, 1, &zero_buf[0]);
+		i2c_smbus_read_i2c_block_data(vooc->client, VOOC_REG_REPORT, 1, &temp_buf[0]);
+		dev_dbg(vooc->dev, "i2c read %d, temp_buf = 0x%x\n", __LINE__, temp_buf[0]);
+
+		i2c_smbus_write_i2c_block_data(vooc->client, VOOC_REG_WRITE, 16, data_buf + 16);
+		i2c_smbus_write_i2c_block_data(vooc->client, VOOC_REG_REPORT, 1, &zero_buf[0]);
+		i2c_smbus_read_i2c_block_data(vooc->client, VOOC_REG_REPORT, 1, &temp_buf[0]);
+		dev_dbg(vooc->dev, "i2c read %d, temp_buf = 0x%x\n", __LINE__, temp_buf[0]);
+
+		count = count + 2 + 32;
+		msleep(2);
+
+		if (count > (offset + length - 1))
+			break;
+	}
+
+	devm_kfree(vooc->dev, (void *)data_buf);
+	return 0;
+}
+
+static int mcu_pic16f_update_firmware(struct oppo_vooc_device *vooc)
+{
+	unsigned char zero_buf[1], temp_buf[1];
+	int rc = 0, retry = 0;
+
+	if (vooc->fw_data == NULL)
+		return -ENODATA;
+
+	dev_dbg(vooc->dev, "%s enter\n", __func__);
+	memset(zero_buf, 0, sizeof(zero_buf));
+	memset(temp_buf, 0, sizeof(temp_buf));
+
+retry:
+	rc = mcu_pic16f_erase_firmware(vooc);
+	if (rc < 0) {
+		dev_dbg(vooc->dev, "%s: Failed to erase firmware\n", __func__);
+		return rc;
+	}
+	msleep(10);
+
+	dev_dbg(vooc->dev, "%s: Write firmware #1\n", __func__);
+	rc = mcu_pic16f_write_firmware(vooc, 0, vooc->fw_data_count - 34);
+	if (rc < 0) {
+		dev_err(vooc->dev, "%s: Failed to write firmware #1\n", __func__);
+		return rc;
+	}
+
+	rc = mcu_pic16f_check_firmware(vooc);
+	if (rc < 0) {
+		retry++;
+		if (retry > 3) {
+			vooc->fw_checked = false;
+			dev_err(vooc->dev, "%s: Check firmware attempts exhausted");
+			return rc;
+		}
+		dev_err(vooc->dev, "%s: Failed to check firmware, retry = %d", retry);
+		vooc_reset_mcu(vooc);
+		goto retry;
+	}
+
+	// Write 0x7F0 - 0x7FF
+	dev_dbg(vooc->dev, "%s: Write firmware #2\n", __func__);
+	rc = mcu_pic16f_write_firmware(vooc, vooc->fw_data_count - 34, 34);
+	if (rc < 0) {
+		dev_err(vooc->dev, "%s: Failed to write firmware #2\n", __func__);
+		return rc;
+	}
+
+	msleep(2);
+
+	i2c_smbus_write_i2c_block_data(vooc->client, VOOC_REG_EXEC, 1, &zero_buf[0]);
+	i2c_smbus_read_i2c_block_data(vooc->client, VOOC_REG_EXEC, 1, &temp_buf[0]);
+	return 0;
+}
+
+/* STM8S MCU Firmware Management */
+static int mcu_stm8s_check_firmware(struct oppo_vooc_device *vooc)
+{
+	unsigned char addr_buf[2], data_buf[32];
+	unsigned int current_addr, target_addr;
+	int rc, i, fw_line = 0;
+
+	if (vooc->fw_data == NULL)
+		return -ENODATA;
+
+	/* Front line */
+	memcpy(addr_buf, (unsigned char[]){0x88, 0x00}, 2);
+	memset(data_buf, 0, sizeof(data_buf));
+	rc = i2c_smbus_write_i2c_block_data(vooc->client, VOOC_REG_SET, 2, &addr_buf[0]);
+	if (rc < 0) {
+		dev_err(vooc->dev, "i2c write failed %d, rc = %d\n", __LINE__, rc);
+		return rc;
+	}
+	msleep(10);
+
+	for (i = 0; i < MCU_STM8S_READ_COUNT; i++) {
+		i2c_smbus_read_i2c_block_data(vooc->client, VOOC_REG_READ, 16, &data_buf[0]);
+		msleep(2);
+		i2c_smbus_read_i2c_block_data(vooc->client, VOOC_REG_READ, 16, &data_buf[16]);
+
+		current_addr = 0x8800 + (i * 32);
+		target_addr = (vooc->fw_data[fw_line * 34 + 1] << 8) | vooc->fw_data[fw_line * 34];
+		if (current_addr != target_addr)
+			continue;
+
+		if (memcmp(data_buf, &vooc->fw_data[fw_line * 34 + 2], 32) != 0) {
+			dev_err(vooc->dev, "comparison failed %d\n", __LINE__);
+			return -EINVAL;
+		}
+
+		fw_line++;
+	}
+
+	/* Last line */
+	memcpy(addr_buf, (unsigned char[]){0x9F, 0x00}, 2);
+	memset(data_buf, 0, sizeof(data_buf));
+	rc = i2c_smbus_write_i2c_block_data(vooc->client, VOOC_REG_SET, 2, &addr_buf[0]);
+	if (rc < 0) {
+		dev_err(vooc->dev, "i2c write failed %d, rc = %d\n", __LINE__, rc);
+		return rc;
+	}
+	msleep(2);
+	i2c_smbus_read_i2c_block_data(vooc->client, VOOC_REG_READ, 16, &data_buf[0]);
+	msleep(2);
+	i2c_smbus_read_i2c_block_data(vooc->client, VOOC_REG_READ, 16, &data_buf[16]);
+
+	if (memcmp(data_buf, &vooc->fw_data[vooc->fw_data_count - 32], 32) != 0) {
+		dev_err(vooc->dev, "comparison failed %d\n", __LINE__);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int mcu_stm8s_erase_firmware(struct oppo_vooc_device *vooc)
+{
+	unsigned char zero_buf[1], addr_buf[2], temp_buf[1];
+	unsigned int addr = 0x8800;
+	int rc = 0, i;
+
+	memcpy(addr_buf, (unsigned char[]){0x88, 0x00}, 2);
+	memset(zero_buf, 0, sizeof(zero_buf));
+	memset(temp_buf, 0, sizeof(temp_buf));
+
+	// Erase 0x10 words at a time
+	for (i = 0; i < MCU_STM8S_ERASE_COUNT; i++) {
+		dev_dbg(vooc->dev, "erase addr = 0x%x\n", addr);
+
+		rc = i2c_smbus_write_i2c_block_data(vooc->client, VOOC_REG_SET, 2, &addr_buf[0]);
+		if (rc < 0) {
+			dev_err(vooc->dev, "i2c write failed %d, rc = %d\n", __LINE__, rc);
+			return rc;
+		}
+
+		i2c_smbus_write_i2c_block_data(vooc->client, VOOC_REG_ERASE, 1, &zero_buf[0]);
+		msleep(1);
+		i2c_smbus_read_i2c_block_data(vooc->client, VOOC_REG_ERASE, 1, &temp_buf[0]);
+		dev_dbg(vooc->dev, "i2c read %d, temp_buf = 0x%x\n", __LINE__, temp_buf[0]);
+
+		addr = addr + 0x10;
+		addr_buf[0] = addr >> 8;
+		addr_buf[1] = addr & 0xFF;
+	}
+
+	return 0;
+}
+
+static int mcu_stm8s_write_firmware(struct oppo_vooc_device *vooc,
+				    unsigned int offset, unsigned int length)
+{
+	unsigned int count = offset;
+	unsigned char zero_buf[1], addr_buf[2], temp_buf[1];
+	int rc = 0;
+
+	if (!vooc->fw_data)
+		return -ENODATA;
+
+	memset(zero_buf, 0, sizeof(zero_buf));
+	memset(temp_buf, 0, sizeof(temp_buf));
+
+	while (count < (offset + length)) {
+		dev_dbg(vooc->dev, "write count %d\n", count);
+
+		addr_buf[0] = vooc->fw_data[count + 1];
+		addr_buf[1] = vooc->fw_data[count];
+
+		rc = i2c_smbus_write_i2c_block_data(vooc->client, VOOC_REG_SET, 2, &addr_buf[0]);
+		if (rc < 0) {
+			dev_err(vooc->dev, "i2c write failed %d, rc = %d\n", __LINE__, rc);
+			return rc;
+		}
+
+		i2c_smbus_write_i2c_block_data(vooc->client,
+					       VOOC_REG_WRITE, 16, &vooc->fw_data[count + 2]);
+		i2c_smbus_write_i2c_block_data(vooc->client, VOOC_REG_REPORT, 1, &zero_buf[0]);
+		i2c_smbus_read_i2c_block_data(vooc->client, VOOC_REG_REPORT, 1, &temp_buf[0]);
+		dev_dbg(vooc->dev, "i2c read %d, temp_buf = 0x%x\n", __LINE__, temp_buf[0]);
+
+		i2c_smbus_write_i2c_block_data(vooc->client,
+					       VOOC_REG_WRITE, 16, &vooc->fw_data[count + 2 + 16]);
+		i2c_smbus_write_i2c_block_data(vooc->client, VOOC_REG_REPORT, 1, &zero_buf[0]);
+		i2c_smbus_read_i2c_block_data(vooc->client, VOOC_REG_REPORT, 1, &temp_buf[0]);
+		dev_dbg(vooc->dev, "i2c read %d, temp_buf = 0x%x\n", __LINE__, temp_buf[0]);
+
+		count = count + 2 + 32;
+		msleep(2);
+
+		if (count > (offset + length - 1))
+			break;
+	}
+
+	return 0;
+}
+
+static int mcu_stm8s_update_firmware(struct oppo_vooc_device *vooc)
+{
+	unsigned char zero_buf[1], temp_buf[1];
+	int rc = 0, retry = 0;
+
+	if (vooc->fw_data == NULL)
+		return -ENODATA;
+
+	dev_dbg(vooc->dev, "%s enter\n", __func__);
+	memset(zero_buf, 0, sizeof(zero_buf));
+	memset(temp_buf, 0, sizeof(temp_buf));
+
+retry:
+	rc = mcu_stm8s_erase_firmware(vooc);
+	if (rc < 0) {
+		dev_dbg(vooc->dev, "%s: Failed to erase firmware\n", __func__);
+		return rc;
+	}
+	msleep(10);
+
+	dev_dbg(vooc->dev, "%s: Write firmware #1\n", __func__);
+	rc = mcu_stm8s_write_firmware(vooc, 0, vooc->fw_data_count - 34);
+	if (rc < 0) {
+		dev_err(vooc->dev, "%s: Failed to write firmware #1\n", __func__);
+		return rc;
+	}
+
+	rc = mcu_stm8s_check_firmware(vooc);
+	if (rc < 0) {
+		retry++;
+		if (retry > 3) {
+			vooc->fw_checked = false;
+			dev_err(vooc->dev, "%s: Check firmware attempts exhausted");
+			return rc;
+		}
+		dev_err(vooc->dev, "%s: Failed to check firmware, retry = %d", retry);
+		vooc_reset_mcu(vooc);
+		goto retry;
+	}
+
+	// Write 0x9FF0 - 0x9FFF
+	dev_dbg(vooc->dev, "%s: Write firmware #2\n", __func__);
+	rc = mcu_stm8s_write_firmware(vooc, vooc->fw_data_count - 34, 34);
+	if (rc < 0) {
+		dev_err(vooc->dev, "%s: Failed to write firmware #2\n", __func__);
+		return rc;
+	}
+
+	msleep(2);
+
+	i2c_smbus_write_i2c_block_data(vooc->client, VOOC_REG_EXEC, 1, &zero_buf[0]);
+	i2c_smbus_read_i2c_block_data(vooc->client, VOOC_REG_EXEC, 1, &temp_buf[0]);
+	return 0;
+}
+
+static void vooc_mcu_update_func(struct work_struct *work)
+{
+	int rc;
+	struct oppo_vooc_device *vooc = container_of(work,
+			struct oppo_vooc_device, vooc_mcu_update_work);
+
+	mutex_lock(&vooc->lock);
+	disable_irq(vooc->data_irq);
 
 	gpiod_set_value_cansleep(vooc->clock_gpio, 0);
 	msleep(10);
-	gpiod_set_value_cansleep(vooc->reset_gpio, 0);
+	vooc_reset_mcu(vooc);
+	gpiod_direction_output(vooc->data_gpio, 1);
 	msleep(2500);
 	gpiod_set_value_cansleep(vooc->clock_gpio, 1);
-	// TODO: Perform fw checks here
+
+	rc = vooc_load_mcu_firmware(vooc);
+	dev_dbg(vooc->dev, "Firmware loading requested: %d\n", rc);
+
+	switch (vooc->id) {
+	case MCU_PIC16F:
+		rc = mcu_pic16f_check_firmware(vooc);
+		if (rc < 0)
+			rc = mcu_pic16f_update_firmware(vooc);
+		break;
+	case MCU_STM8S:
+		rc = mcu_stm8s_check_firmware(vooc);
+		if (rc < 0)
+			rc = mcu_stm8s_update_firmware(vooc);
+		break;
+	default:
+		dev_err(vooc->dev, "unknown mcu %d\n", vooc->id);
+		return;
+	}
+
+	if (!rc) {
+		vooc->fw_checked = true;
+		dev_info(vooc->dev, "Firmware check successful\n");
+	}
 
 	msleep(5);
-	gpiod_set_value_cansleep(vooc->reset_gpio, 0);
+	vooc_reset_mcu(vooc);
+	gpiod_direction_input(vooc->data_gpio);
+	enable_irq(vooc->data_irq);
 }
 
 static bool vooc_is_batt_psy_available(struct oppo_vooc_device *vooc)
@@ -203,10 +660,12 @@ static void power_supply_changed_func(struct work_struct *work)
 			dev_err(vooc->dev,
 				"Error obtaining battery status, rc=%d\n", rc);
 
-		if (pval.intval == POWER_SUPPLY_STATUS_CHARGING)
-			schedule_work(&vooc->adapter_update_work);
+		if (pval.intval == POWER_SUPPLY_STATUS_CHARGING) {
+			if (!vooc->fw_checked || vooc->fw_data == NULL)
+				schedule_work(&vooc->vooc_mcu_update_work);
+		}
 	} else {
-		dev_err(vooc->dev, "Error obtaining battery power supply");
+		dev_err(vooc->dev, "Error obtaining battery power supply\n");
 	}
 }
 
@@ -224,10 +683,18 @@ static int vooc_psy_notifier_cb(struct notifier_block *nb,
 	return NOTIFY_OK;
 }
 
+static const struct of_device_id vooc_of_match[] = {
+	{ .compatible = "oppo,pic16f-vooc", .data = (void *)MCU_PIC16F, },
+	{ .compatible = "oppo,stm8s-vooc", .data = (void *)MCU_STM8S, },
+	{}
+};
+MODULE_DEVICE_TABLE(of, vooc_of_match);
+
 static int vooc_probe(struct i2c_client *client,
 		      const struct i2c_device_id *id)
 {
 	int rc = 0;
+	const char *fw_variant;
 
 	struct oppo_vooc_device *vooc = devm_kzalloc(&client->dev,
 						     sizeof(*vooc), GFP_KERNEL);
@@ -240,6 +707,18 @@ static int vooc_probe(struct i2c_client *client,
 	vooc->client = client;
 	vooc->dev = &client->dev;
 	i2c_set_clientdata(client, vooc);
+
+	if (client->dev.of_node) {
+		const struct of_device_id *match;
+
+		match = of_match_device(of_match_ptr(vooc_of_match),
+				&client->dev);
+		if (!match)
+			return -ENODATA;
+		vooc->id = (u32)((uintptr_t)match->data);
+	} else {
+		vooc->id = id->driver_data;
+	}
 
 	vooc->switch_gpios = devm_gpiod_get_array(&client->dev,
 			"switch", GPIOD_OUT_LOW);
@@ -283,10 +762,18 @@ static int vooc_probe(struct i2c_client *client,
 		goto out;
 	}
 
-	vooc->batt_psy = power_supply_get_by_name("battery");
-	if (vooc->batt_psy == NULL)
-		dev_err(&client->dev,
-			"Failed to get battery power supply rc=%d\n", rc);
+	switch (vooc->id) {
+	case MCU_PIC16F:
+		dev_info(&client->dev, "selected pic16f fast mcu\n");
+		break;
+	case MCU_STM8S:
+		dev_info(&client->dev, "selected stm8s fast mcu\n");
+		break;
+	default:
+		dev_err(&client->dev, "unknown mcu %d\n", vooc->id);
+		rc = -EINVAL;
+		goto out;
+	}
 
 	vooc->nb.notifier_call = vooc_psy_notifier_cb;
 	rc = power_supply_reg_notifier(&vooc->nb);
@@ -297,8 +784,15 @@ static int vooc_probe(struct i2c_client *client,
 	mutex_init(&vooc->lock);
 
 	INIT_WORK(&vooc->vooc_poll_work, vooc_poll_func);
-	INIT_WORK(&vooc->adapter_update_work, adapter_update_func);
+	INIT_WORK(&vooc->vooc_mcu_update_work, vooc_mcu_update_func);
 	INIT_WORK(&vooc->power_supply_changed_work, power_supply_changed_func);
+
+	fw_variant = of_get_property(client->dev.of_node, "vooc,firmware-variant", NULL);
+	if (fw_variant) {
+		fw_name = devm_kasprintf(&client->dev,
+					 GFP_KERNEL, "vooc_fw_%s.bin", fw_variant);
+	}
+	schedule_work(&vooc->vooc_mcu_update_work);
 
 	rc = devm_request_irq(&client->dev, vooc->data_irq,
 			      vooc_irq_rx_handler, IRQF_TRIGGER_RISING,
@@ -330,18 +824,11 @@ static int vooc_remove(struct i2c_client *client)
 }
 
 static const struct i2c_device_id vooc_i2c_ids[] = {
-	{ "pic16f-vooc", 0 },
-	{ "stm8s-vooc", 0 },
+	{ "pic16f-vooc", MCU_PIC16F },
+	{ "stm8s-vooc", MCU_STM8S },
 	{},
 };
 MODULE_DEVICE_TABLE(i2c, vooc_i2c_ids);
-
-static const struct of_device_id vooc_of_match[] = {
-	{ .compatible = "oppo,pic16f-vooc", },
-	{ .compatible = "oppo,stm8s-vooc", },
-	{}
-};
-MODULE_DEVICE_TABLE(of, vooc_of_match);
 
 static struct i2c_driver vooc_i2c_driver = {
 	.driver = {
