@@ -12,20 +12,11 @@ which clang | tee -a build.log
 which aarch64-linux-gnu-gcc | tee -a build.log
 ls $HOME/proton-clang/bin/ | tee -a build.log
 
-# 2. Setup SukiSU Ultra v3.2.0 + PATCH BUAT KERNEL 4.9!
+# 2. Setup SukiSU Ultra v3.2.0
 echo "=== Setup SukiSU ===" | tee -a build.log
 rm -rf drivers/kernelsu
 curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s v3.2.0
-echo "CEK drivers/kernelsu" | tee -a build.log
 ls drivers/kernelsu/ | tee -a build.log
-echo "=== Patch SukiSU buat Kernel 4.9 ===" | tee -a build.log
-# Kernel 4.9 gak kenal MODULE_IMPORT_NS, hapus semua!
-grep -r "MODULE_IMPORT_NS" drivers/kernelsu/ | tee -a build.log || echo "gak ada MODULE_IMPORT_NS" | tee -a build.log
-find drivers/kernelsu -name "*.c" -o -name "*.h" | xargs sed -i '/MODULE_IMPORT_NS/d' || true
-# Cek lagi, harusnya udah ilang!
-grep -r "MODULE_IMPORT_NS" drivers/kernelsu/ | tee -a build.log || echo "MODULE_IMPORT_NS udah ilang, aman!" | tee -a build.log
-# Kernel 4.9 juga gak kenal MODULE_IMPORT_NS di Kconfig, matiin KPM sekalian biar aman
-grep -r "KPM" drivers/kernelsu/Kconfig | tee -a build.log || true
 
 # 3. Config A57
 DEFCONFIG=msm8937-perf_defconfig
@@ -74,21 +65,19 @@ open(p, 'w').write(t)
 print("patched bluetooth-power.c")
 PYEOF
 
-# 5. FIX KGSL / ADRENO TRACE - BRUTE FORCE!
-echo "=== Fix KGSL Brute Force ===" | tee -a build.log
+# 5. FIX KGSL / ADRENO TRACE
+echo "=== Fix KGSL ===" | tee -a build.log
 git checkout -- drivers/gpu/msm/kgsl_trace.h || true
 git checkout -- drivers/gpu/msm/adreno_trace.h || true
 git checkout -- drivers/gpu/msm/kgsl_trace.c || true
 git checkout -- drivers/gpu/msm/adreno_trace.c || true
 find drivers/gpu/msm -name "Makefile*" -exec sed -i '/kgsl_trace/d; /adreno_trace/d; /kgsl_events/d' {} \;
 grep -q "ccflags-y += -I" drivers/gpu/msm/Makefile || echo 'ccflags-y += -I$(srctree)/drivers/gpu/msm -I$(src)' >> drivers/gpu/msm/Makefile
-grep -r "adreno_trace" drivers/gpu/msm --include="Makefile" | tee -a build.log || echo "adreno_trace udah ilang dari Makefile" | tee -a build.log
 python3 << 'PYEOF'
 import re, glob, os
 for f in glob.glob("drivers/gpu/msm/*.c"):
     base = os.path.basename(f)
     if "trace" in base or "events" in base:
-        print(f"skip {f}")
         continue
     try:
         t = open(f, errors="ignore").read()
@@ -128,6 +117,37 @@ echo "=== Clean + Defconfig ===" | tee -a build.log
 make clean 2>&1 | tee -a build.log || true
 make mrproper 2>&1 | tee -a build.log || true
 make ARCH=arm64 $DEFCONFIG 2>&1 | tee -a build.log
+
+# 7b. PATCH SUKISU BUAT KERNEL 4.9 - TARUH DI SINI! SETELAH MRPROPER! BIAR GAK KE-RESET!
+echo "=== Patch SukiSU Kernel 4.9 - Final ===" | tee -a build.log
+python3 << 'PYEOF'
+import glob, os
+for f in glob.glob("drivers/kernelsu/**/*.c", recursive=True) + glob.glob("drivers/kernelsu/**/*.h", recursive=True):
+    try:
+        t = open(f, errors="ignore").read()
+        if "MODULE_IMPORT_NS" not in t:
+            continue
+        print(f"Patching {f}")
+        # 1. Hapus baris MODULE_IMPORT_NS yang asli
+        lines = [l for l in t.splitlines() if "MODULE_IMPORT_NS" not in l]
+        t2 = "\n".join(lines)
+        # 2. Tambahin define di atas biar kalau ada sisa, gak error!
+        define = "#ifndef MODULE_IMPORT_NS\n#define MODULE_IMPORT_NS(x)\n#endif\n"
+        if "MODULE_IMPORT_NS" not in t2 and "#define MODULE_IMPORT_NS" not in t2:
+            # Sisipin setelah include pertama
+            if "#include" in t2:
+                parts = t2.split("\n", 1)
+                t2 = parts[0] + "\n" + define + parts[1] if len(parts) > 1 else define + t2
+            else:
+                t2 = define + t2
+        open(f, 'w').write(t2)
+        print(f"patched {f}")
+    except Exception as e:
+        print(f"skip {f}: {e}")
+print("SukiSU 4.9 patch done")
+PYEOF
+grep -r "MODULE_IMPORT_NS" drivers/kernelsu/ | tee -a build.log || echo "MODULE_IMPORT_NS udah bersih!" | tee -a build.log
+grep -n "define MODULE_IMPORT_NS" drivers/kernelsu/ksu.c | tee -a build.log
 
 # 8. BUILD KERNEL
 echo "=== Building Image.gz-dtb ===" | tee -a build.log
