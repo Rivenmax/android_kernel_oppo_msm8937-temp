@@ -2,6 +2,7 @@
 # Build SukiSU Ultra v3.2.0 buat A57 LOS 19.1 - By Rivenmax
 set -x
 set -e
+set -o pipefail
 
 echo "=== Mulai Build SukiSU A57 LOS 19.1 ===" | tee build.log
 
@@ -38,11 +39,26 @@ echo "CONFIG_CC_STACKPROTECTOR=n" >> arch/arm64/configs/$DEFCONFIG
 sed -i '/CONFIG_BT_FM_SLIM/d' arch/arm64/configs/$DEFCONFIG
 sed -i '/CONFIG_BTFM_SLIM/d' arch/arm64/configs/$DEFCONFIG
 
-if [ -f drivers/bluetooth/btfm_slim.h ]; then
-  echo "// dummy btfm_slim.h" > drivers/bluetooth/btfm_slim.h
-fi
+# 4. FIX BTFM_SLIM - INI YANG BIKIN GAGAL KEMARIN!
+echo "=== Fix BTFM_SLIM ===" | tee -a build.log
+cat > drivers/bluetooth/btfm_slim.h << 'EOF'
+#ifndef __BTFM_SLIM_H
+#define __BTFM_SLIM_H
+int btfm_slim_hw_init(void);
+int btfm_slim_hw_deinit(void);
+int btfm_slim_wakeup(void);
+#endif
+EOF
+cat > drivers/bluetooth/btfm_slim_stub.c << 'EOF'
+int btfm_slim_hw_init(void) { return 0; }
+int btfm_slim_hw_deinit(void) { return 0; }
+int btfm_slim_wakeup(void) { return 0; }
+EOF
+grep -q "btfm_slim_stub" drivers/bluetooth/Makefile || echo "obj-y += btfm_slim_stub.o" >> drivers/bluetooth/Makefile
+cat drivers/bluetooth/btfm_slim.h | tee -a build.log
+cat drivers/bluetooth/Makefile | grep btfm | tee -a build.log
 
-# 4. Fix kgsl_trace.h stub
+# 5. Fix kgsl_trace.h stub
 echo "=== Generate kgsl_trace.h stub ===" | tee -a build.log
 rm -f drivers/gpu/msm/kgsl_trace.h
 sed -i 's/kgsl_trace.c/kgsl_trace.o/' drivers/gpu/msm/Makefile || true
@@ -60,7 +76,7 @@ sed -i '/CONFIG_MSM_KGSL_TRACE/d' arch/arm64/configs/$DEFCONFIG
 echo "CONFIG_MSM_KGSL_TRACE=n" >> arch/arm64/configs/$DEFCONFIG
 echo "CONFIG_MSM_KGSL_TRACING=n" >> arch/arm64/configs/$DEFCONFIG
 
-# 5. Export Toolchain - INI YANG BIKIN GAGAL KEMARIN!
+# 6. Export Toolchain
 export ARCH=arm64
 export SUBARCH=arm64
 export CC=clang
@@ -75,17 +91,17 @@ export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
 export CLANG_TRIPLE=aarch64-linux-gnu-
 export PATH=$HOME/proton-clang/bin:$PATH
 
-# 6. Bersihin + Config
+# 7. Bersihin + Config
 echo "=== Clean + Defconfig ===" | tee -a build.log
 make clean 2>&1 | tee -a build.log || true
 make mrproper 2>&1 | tee -a build.log || true
 make ARCH=arm64 $DEFCONFIG 2>&1 | tee -a build.log
 
-# 7. BUILD KERNEL - INTINYA!
+# 8. BUILD KERNEL - INTINYA!
 echo "=== Building Image.gz-dtb ===" | tee -a build.log
 make ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- CLANG_TRIPLE=aarch64-linux-gnu- -j$(nproc) Image.gz-dtb 2>&1 | tee -a build.log
 
-# 8. Cek Hasil
+# 9. Cek Hasil
 echo "=== HASIL ===" | tee -a build.log
 ls -lh arch/arm64/boot/ | tee -a build.log
 
