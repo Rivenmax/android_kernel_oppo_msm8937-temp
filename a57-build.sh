@@ -39,20 +39,20 @@ echo "CONFIG_CC_STACKPROTECTOR=n" >> arch/arm64/configs/$DEFCONFIG
 sed -i '/CONFIG_BT_FM_SLIM/d' arch/arm64/configs/$DEFCONFIG
 sed -i '/CONFIG_BTFM_SLIM/d' arch/arm64/configs/$DEFCONFIG
 
-# 4. FIX BTFM_SLIM - INI YANG BIKIN GAGAL KEMARIN!
+# 4. FIX BTFM_SLIM - UDAH BENER TANDA TANGAN NYA!
 echo "=== Fix BTFM_SLIM ===" | tee -a build.log
 cat > drivers/bluetooth/btfm_slim.h << 'EOF'
 #ifndef __BTFM_SLIM_H
 #define __BTFM_SLIM_H
-int btfm_slim_hw_init(void);
-int btfm_slim_hw_deinit(void);
-int btfm_slim_wakeup(void);
+int btfm_slim_hw_init(void *platform_data);
+int btfm_slim_hw_deinit(void *platform_data);
+int btfm_slim_wakeup(void *platform_data);
 #endif
 EOF
 cat > drivers/bluetooth/btfm_slim_stub.c << 'EOF'
-int btfm_slim_hw_init(void) { return 0; }
-int btfm_slim_hw_deinit(void) { return 0; }
-int btfm_slim_wakeup(void) { return 0; }
+int btfm_slim_hw_init(void *platform_data) { return 0; }
+int btfm_slim_hw_deinit(void *platform_data) { return 0; }
+int btfm_slim_wakeup(void *platform_data) { return 0; }
 EOF
 grep -q "btfm_slim_stub" drivers/bluetooth/Makefile || echo "obj-y += btfm_slim_stub.o" >> drivers/bluetooth/Makefile
 cat drivers/bluetooth/btfm_slim.h | tee -a build.log
