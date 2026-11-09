@@ -1,31 +1,51 @@
 name: Build SukiSU Ultra v3.2.0 buat A57 - LOS 19.1 - RIVENMAX
+
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Install Toolchain
+        with:
+          fetch-depth: 1
+
+      - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu build-essential bc bison flex libssl-dev libelf-dev
+          sudo apt-get install -y bc bison flex libssl-dev libelf-dev make gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi git curl wget zip unzip python3
+
+      - name: Setup Proton Clang Toolchain
+        run: |
+          git clone --depth=1 https://github.com/kdrag0n/proton-clang.git $HOME/proton-clang
+          ls $HOME/proton-clang/bin/ | head -20
+          echo "PROTON_CLANG=$HOME/proton-clang" >> $GITHUB_ENV
+          echo "$HOME/proton-clang/bin" >> $GITHUB_PATH
+
       - name: Build via a57-build.sh
         run: |
           chmod +x a57-build.sh
-          ./a57-build.sh
+          bash a57-build.sh
+
       - name: Upload LOG
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: build-log-SUKISU-RIVENMAX-19.1
+          name: build-log
           path: build.log
+
       - name: Upload Boot
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: A57-SUKISU-ULTRA-LOS19.1-RIVENMAX
+          name: Image-gz-dtb
           path: |
-            Image.gz
             Image.gz-dtb
             Image
             arch/arm64/boot/Image.gz-dtb
