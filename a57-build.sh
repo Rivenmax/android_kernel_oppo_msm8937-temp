@@ -118,8 +118,8 @@ make clean 2>&1 | tee -a build.log || true
 make mrproper 2>&1 | tee -a build.log || true
 make ARCH=arm64 $DEFCONFIG 2>&1 | tee -a build.log
 
-# 7b. PATCH SUKISU BUAT KERNEL 4.9 - TARUH DI SINI! SETELAH MRPROPER! BIAR GAK KE-RESET!
-echo "=== Patch SukiSU Kernel 4.9 - Final ===" | tee -a build.log
+# 7b. PATCH SUKISU BUAT KERNEL 4.9 - TARUH SETELAH MRPROPER!
+echo "=== Patch SukiSU Kernel 4.9 ===" | tee -a build.log
 python3 << 'PYEOF'
 import glob, os
 for f in glob.glob("drivers/kernelsu/**/*.c", recursive=True) + glob.glob("drivers/kernelsu/**/*.h", recursive=True):
@@ -128,13 +128,10 @@ for f in glob.glob("drivers/kernelsu/**/*.c", recursive=True) + glob.glob("drive
         if "MODULE_IMPORT_NS" not in t:
             continue
         print(f"Patching {f}")
-        # 1. Hapus baris MODULE_IMPORT_NS yang asli
         lines = [l for l in t.splitlines() if "MODULE_IMPORT_NS" not in l]
         t2 = "\n".join(lines)
-        # 2. Tambahin define di atas biar kalau ada sisa, gak error!
         define = "#ifndef MODULE_IMPORT_NS\n#define MODULE_IMPORT_NS(x)\n#endif\n"
-        if "MODULE_IMPORT_NS" not in t2 and "#define MODULE_IMPORT_NS" not in t2:
-            # Sisipin setelah include pertama
+        if "#define MODULE_IMPORT_NS" not in t2:
             if "#include" in t2:
                 parts = t2.split("\n", 1)
                 t2 = parts[0] + "\n" + define + parts[1] if len(parts) > 1 else define + t2
@@ -146,8 +143,44 @@ for f in glob.glob("drivers/kernelsu/**/*.c", recursive=True) + glob.glob("drive
         print(f"skip {f}: {e}")
 print("SukiSU 4.9 patch done")
 PYEOF
-grep -r "MODULE_IMPORT_NS" drivers/kernelsu/ | tee -a build.log || echo "MODULE_IMPORT_NS udah bersih!" | tee -a build.log
-grep -n "define MODULE_IMPORT_NS" drivers/kernelsu/ksu.c | tee -a build.log
+
+# 7c. FIX COMPILER_TYPES.H - BIKIN SHIM BUAT KERNEL 4.9!
+echo "=== Fix compiler_types.h Shim ===" | tee -a build.log
+ls -l include/linux/compiler_types.h 2>&1 | tee -a build.log || echo "compiler_types.h emang gak ada, bikin shim!" | tee -a build.log
+cat > include/linux/compiler_types.h << 'EOF'
+#ifndef _LINUX_COMPILER_TYPES_H
+#define _LINUX_COMPILER_TYPES_H
+#include <linux/compiler.h>
+#ifndef __no_sanitize_address
+#define __no_sanitize_address
+#endif
+#ifndef __no_kasan
+#define __no_kasan
+#endif
+#ifndef __no_kcsan
+#define __no_kcsan
+#endif
+#ifndef __no_sanitize_undefined
+#define __no_sanitize_undefined
+#endif
+#ifndef __no_sanitize_coverage
+#define __no_sanitize_coverage
+#endif
+#ifndef __compiletime_assert
+#define __compiletime_assert(condition, msg, prefix, suffix)
+#endif
+#ifndef compiletime_assert
+#define compiletime_assert(condition, msg) do { } while (0)
+#endif
+#ifndef __compiletime_warning
+#define __compiletime_warning(message)
+#endif
+#ifndef __compiletime_error
+#define __compiletime_error(message)
+#endif
+#endif
+EOF
+cat include/linux/compiler_types.h | tee -a build.log
 
 # 8. BUILD KERNEL
 echo "=== Building Image.gz-dtb ===" | tee -a build.log
