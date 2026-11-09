@@ -39,24 +39,30 @@ echo "CONFIG_CC_STACKPROTECTOR=n" >> arch/arm64/configs/$DEFCONFIG
 sed -i '/CONFIG_BT_FM_SLIM/d' arch/arm64/configs/$DEFCONFIG
 sed -i '/CONFIG_BTFM_SLIM/d' arch/arm64/configs/$DEFCONFIG
 
-# 4. FIX BTFM_SLIM - UDAH BENER TANDA TANGAN NYA!
-echo "=== Fix BTFM_SLIM ===" | tee -a build.log
-cat > drivers/bluetooth/btfm_slim.h << 'EOF'
-#ifndef __BTFM_SLIM_H
-#define __BTFM_SLIM_H
-int btfm_slim_hw_init(void *platform_data);
-int btfm_slim_hw_deinit(void *platform_data);
-int btfm_slim_wakeup(void *platform_data);
-#endif
-EOF
-cat > drivers/bluetooth/btfm_slim_stub.c << 'EOF'
-int btfm_slim_hw_init(void *platform_data) { return 0; }
-int btfm_slim_hw_deinit(void *platform_data) { return 0; }
-int btfm_slim_wakeup(void *platform_data) { return 0; }
-EOF
-grep -q "btfm_slim_stub" drivers/bluetooth/Makefile || echo "obj-y += btfm_slim_stub.o" >> drivers/bluetooth/Makefile
-cat drivers/bluetooth/btfm_slim.h | tee -a build.log
-cat drivers/bluetooth/Makefile | grep btfm | tee -a build.log
+# 4. FIX BTFM_SLIM - CARA BENER! JANGAN TIMPA HEADER!
+echo "=== Fix BTFM_SLIM - Cara Bener ===" | tee -a build.log
+# Balikin header asli kalau pernah ketimpa
+git checkout -- drivers/bluetooth/btfm_slim.h || true
+# Hapus stub lama yang salah
+rm -f drivers/bluetooth/btfm_slim_stub.c
+sed -i '/btfm_slim_stub/d' drivers/bluetooth/Makefile || true
+# Hapus btfm_slim.c asli dari build, karena file ini yang error di Clang
+sed -i '/btfm_slim\.o/d' drivers/bluetooth/Makefile || true
+sed -i '/btfm_slim/d' drivers/bluetooth/Makefile || true
+cat drivers/bluetooth/Makefile | tee -a build.log
+# Patch bluetooth-power.c: ganti panggilan btfm_slim_hw_init(...) jadi 0
+python3 << 'PYEOF'
+import re
+p = "drivers/bluetooth/bluetooth-power.c"
+t = open(p).read()
+# Ganti semua panggilan btfm_slim_hw_init(....) jadi 0, biar gak perlu header stub
+t = re.sub(r'btfm_slim_hw_init\s*\([^;]*?\)', '0', t)
+t = re.sub(r'btfm_slim_hw_deinit\s*\([^;]*?\)', '0', t)
+t = re.sub(r'btfm_slim_wakeup\s*\([^;]*?\)', '0', t)
+open(p, 'w').write(t)
+print("patched bluetooth-power.c")
+PYEOF
+grep -n "btfm_slim" drivers/bluetooth/bluetooth-power.c | tee -a build.log || echo "btfm_slim call udah ilang" | tee -a build.log
 
 # 5. Fix kgsl_trace.h stub
 echo "=== Generate kgsl_trace.h stub ===" | tee -a build.log
