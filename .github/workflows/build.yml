@@ -19,7 +19,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc bison flex libssl-dev libelf-dev make gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi git curl wget zip unzip python3
+          sudo apt-get install -y bc bison flex libssl-dev libelf-dev make gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi python3
 
       - name: Setup Proton Clang Toolchain
         run: |
@@ -47,5 +47,4 @@ jobs:
           name: Image-gz-dtb
           path: |
             Image.gz-dtb
-            Image
             arch/arm64/boot/Image.gz-dtb
