@@ -118,7 +118,7 @@ make clean 2>&1 | tee -a build.log || true
 make mrproper 2>&1 | tee -a build.log || true
 make ARCH=arm64 $DEFCONFIG 2>&1 | tee -a build.log
 
-# 7b. PATCH SUKISU BUAT KERNEL 4.9 - TARUH SETELAH MRPROPER!
+# 7b. PATCH SUKISU BUAT KERNEL 4.9
 echo "=== Patch SukiSU Kernel 4.9 ===" | tee -a build.log
 python3 << 'PYEOF'
 import glob, os
@@ -144,9 +144,9 @@ for f in glob.glob("drivers/kernelsu/**/*.c", recursive=True) + glob.glob("drive
 print("SukiSU 4.9 patch done")
 PYEOF
 
-# 7c. FIX COMPILER_TYPES.H - BIKIN SHIM BUAT KERNEL 4.9!
-echo "=== Fix compiler_types.h Shim ===" | tee -a build.log
-ls -l include/linux/compiler_types.h 2>&1 | tee -a build.log || echo "compiler_types.h emang gak ada, bikin shim!" | tee -a build.log
+# 7c. FIX SHIM HEADER BUAT KERNEL 4.9 - SEKALIGUS SEMUA!
+echo "=== Fix Shim Headers Kernel 4.9 ===" | tee -a build.log
+# Shim 1: compiler_types.h
 cat > include/linux/compiler_types.h << 'EOF'
 #ifndef _LINUX_COMPILER_TYPES_H
 #define _LINUX_COMPILER_TYPES_H
@@ -172,15 +172,57 @@ cat > include/linux/compiler_types.h << 'EOF'
 #ifndef compiletime_assert
 #define compiletime_assert(condition, msg) do { } while (0)
 #endif
-#ifndef __compiletime_warning
-#define __compiletime_warning(message)
 #endif
-#ifndef __compiletime_error
-#define __compiletime_error(message)
+EOF
+# Shim 2: sched/task_stack.h - INI YANG ERROR SEKARANG!
+mkdir -p include/linux/sched
+cat > include/linux/sched/task_stack.h << 'EOF'
+#ifndef _LINUX_SCHED_TASK_STACK_H
+#define _LINUX_SCHED_TASK_STACK_H
+#include <linux/sched.h>
+#ifndef task_stack_page
+#define task_stack_page(task) ((void *)(task)->stack)
+#endif
+#ifndef task_stack_end
+#define task_stack_end(task) ((void *)(task)->stack + THREAD_SIZE)
+#endif
+#ifndef task_stack_size
+#define task_stack_size() THREAD_SIZE
+#endif
+#ifndef task_stack_vm_area
+#define task_stack_vm_area(task) (NULL)
+#endif
+#ifndef task_stack_end_corrupted
+static inline int task_stack_end_corrupted(struct task_struct *task) { return 0; }
 #endif
 #endif
 EOF
-cat include/linux/compiler_types.h | tee -a build.log
+# Shim 3: sched/mm.h - Sering dicari SukiSU baru!
+cat > include/linux/sched/mm.h << 'EOF'
+#ifndef _LINUX_SCHED_MM_H
+#define _LINUX_SCHED_MM_H
+#include <linux/sched.h>
+#include <linux/mm.h>
+#include <linux/mm_types.h>
+#endif
+EOF
+# Shim 4: sched/signal.h - Sering dicari juga!
+cat > include/linux/sched/signal.h << 'EOF'
+#ifndef _LINUX_SCHED_SIGNAL_H
+#define _LINUX_SCHED_SIGNAL_H
+#include <linux/sched.h>
+#include <linux/signal.h>
+#endif
+EOF
+# Shim 5: sched/task.h
+cat > include/linux/sched/task.h << 'EOF'
+#ifndef _LINUX_SCHED_TASK_H
+#define _LINUX_SCHED_TASK_H
+#include <linux/sched.h>
+#endif
+EOF
+ls -l include/linux/compiler_types.h include/linux/sched/*.h | tee -a build.log
+cat include/linux/sched/task_stack.h | tee -a build.log
 
 # 8. BUILD KERNEL
 echo "=== Building Image.gz-dtb ===" | tee -a build.log
