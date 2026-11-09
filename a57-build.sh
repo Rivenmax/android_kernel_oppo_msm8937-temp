@@ -12,7 +12,7 @@ export SUBARCH=arm64
 
 # Defconfig - GANTI kalau di repo kamu namanya beda
 # Cek di arch/arm64/configs/
-DEFCONFIG="msm8937-perf_defconfig"
+DEFCONFIG="lineageos_A57_defconfig"
 # Kalau pakai Lineage biasanya: lineage_msm8937_defconfig
 # Kalau gagal, ganti ke nama defconfig yang ada di repo kamu
 
