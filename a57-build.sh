@@ -28,6 +28,11 @@ sed -i '/CONFIG_KALLSYMS/d' arch/arm64/configs/$DEFCONFIG
 sed -i '/CONFIG_KALLSYMS_ALL/d' arch/arm64/configs/$DEFCONFIG
 sed -i '/CONFIG_CC_STACKPROTECTOR_STRONG/d' arch/arm64/configs/$DEFCONFIG
 sed -i '/CONFIG_CC_STACKPROTECTOR/d' arch/arm64/configs/$DEFCONFIG
+sed -i '/CONFIG_MSM_ADRENO_TRACE/d' arch/arm64/configs/$DEFCONFIG
+sed -i '/CONFIG_MSM_ADRENO_TRACING/d' arch/arm64/configs/$DEFCONFIG
+sed -i '/CONFIG_MSM_KGSL_TRACE/d' arch/arm64/configs/$DEFCONFIG
+sed -i '/CONFIG_MSM_KGSL_TRACING/d' arch/arm64/configs/$DEFCONFIG
+sed -i '/CONFIG_TRACING/d' arch/arm64/configs/$DEFCONFIG
 
 echo "CONFIG_KPROBES=y" >> arch/arm64/configs/$DEFCONFIG
 echo "CONFIG_KALLSYMS=y" >> arch/arm64/configs/$DEFCONFIG
@@ -35,6 +40,10 @@ echo "CONFIG_KALLSYMS_ALL=y" >> arch/arm64/configs/$DEFCONFIG
 echo "CONFIG_KSU=y" >> arch/arm64/configs/$DEFCONFIG
 echo "CONFIG_CC_STACKPROTECTOR_NONE=y" >> arch/arm64/configs/$DEFCONFIG
 echo "CONFIG_CC_STACKPROTECTOR=n" >> arch/arm64/configs/$DEFCONFIG
+echo "CONFIG_MSM_ADRENO_TRACE=n" >> arch/arm64/configs/$DEFCONFIG
+echo "CONFIG_MSM_ADRENO_TRACING=n" >> arch/arm64/configs/$DEFCONFIG
+echo "CONFIG_MSM_KGSL_TRACE=n" >> arch/arm64/configs/$DEFCONFIG
+echo "CONFIG_MSM_KGSL_TRACING=n" >> arch/arm64/configs/$DEFCONFIG
 
 sed -i '/CONFIG_BT_FM_SLIM/d' arch/arm64/configs/$DEFCONFIG
 sed -i '/CONFIG_BTFM_SLIM/d' arch/arm64/configs/$DEFCONFIG
@@ -46,7 +55,6 @@ rm -f drivers/bluetooth/btfm_slim_stub.c
 sed -i '/btfm_slim_stub/d' drivers/bluetooth/Makefile || true
 sed -i '/btfm_slim\.o/d' drivers/bluetooth/Makefile || true
 sed -i '/btfm_slim/d' drivers/bluetooth/Makefile || true
-cat drivers/bluetooth/Makefile | tee -a build.log
 python3 << 'PYEOF'
 import re
 p = "drivers/bluetooth/bluetooth-power.c"
@@ -58,31 +66,29 @@ open(p, 'w').write(t)
 print("patched bluetooth-power.c")
 PYEOF
 
-# 5. FIX KGSL - INCLUDE + TRACE
-echo "=== Fix KGSL ===" | tee -a build.log
+# 5. FIX KGSL / ADRENO TRACE - BRUTE FORCE!
+echo "=== Fix KGSL Brute Force ===" | tee -a build.log
 git checkout -- drivers/gpu/msm/kgsl_trace.h || true
-sed -i '/kgsl_trace/d' drivers/gpu/msm/Makefile || true
+git checkout -- drivers/gpu/msm/adreno_trace.h || true
+git checkout -- drivers/gpu/msm/kgsl_trace.c || true
+git checkout -- drivers/gpu/msm/adreno_trace.c || true
+# Hapus trace.o dari SEMUA Makefile di drivers/gpu/msm, bukan cuma 1!
+find drivers/gpu/msm -name "Makefile*" -exec sed -i '/kgsl_trace/d; /adreno_trace/d; /kgsl_events/d' {} \;
+# Tambahin -I biar ./adreno_trace.h ketemu!
+grep -q "ccflags-y += -I" drivers/gpu/msm/Makefile || echo 'ccflags-y += -I$(srctree)/drivers/gpu/msm -I$(src)' >> drivers/gpu/msm/Makefile
 cat drivers/gpu/msm/Makefile | tee -a build.log
+grep -r "adreno_trace" drivers/gpu/msm --include="Makefile" | tee -a build.log || echo "adreno_trace udah ilang dari Makefile" | tee -a build.log
 python3 << 'PYEOF'
-import re, glob
-# 5a. Fix trace calls jadi do {} while(0)
-for f in glob.glob("drivers/gpu/msm/*.c") + glob.glob("drivers/gpu/msm/*.h"):
+import re, glob, os
+for f in glob.glob("drivers/gpu/msm/*.c"):
+    base = os.path.basename(f)
+    if "trace" in base or "events" in base:
+        print(f"skip {f}")
+        continue
     try:
         t = open(f, errors="ignore").read()
         orig = t
         t = re.sub(r'\btrace_kgsl_[a-z_0-9]+\s*\([^;]*?\);', 'do { } while (0);', t)
-        t = re.sub(r'\btrace_[a-z_0-9]+\s*\([^;]*?\);', 'do { } while (0);', t)
-        if t != orig:
-            open(f, 'w').write(t)
-            print(f"patched trace {f}")
-    except Exception as e:
-        print(f"skip {f}: {e}")
-# 5b. Fix #include <kgsl_*.h> jadi #include "kgsl_*.h" biar Clang ketemu!
-for f in glob.glob("drivers/gpu/msm/*.c") + glob.glob("drivers/gpu/msm/*.h") + glob.glob("drivers/gpu/msm/**/*.c", recursive=True) + glob.glob("drivers/gpu/msm/**/*.h", recursive=True):
-    try:
-        t = open(f, errors="ignore").read()
-        orig = t
-        # Hanya yang lokal: kgsl_, adreno_, msm_, a6xx_, etc. Jangan ubah <linux/...>!
         t = re.sub(r'#include\s*<\s*(kgsl_[^>]+)>', r'#include "\1"', t)
         t = re.sub(r'#include\s*<\s*(adreno_[^>]+)>', r'#include "\1"', t)
         t = re.sub(r'#include\s*<\s*(msm_[^>]+)>', r'#include "\1"', t)
@@ -90,15 +96,11 @@ for f in glob.glob("drivers/gpu/msm/*.c") + glob.glob("drivers/gpu/msm/*.h") + g
         t = re.sub(r'#include\s*<\s*(a5xx_[^>]+)>', r'#include "\1"', t)
         if t != orig:
             open(f, 'w').write(t)
-            print(f"patched include {f}")
+            print(f"patched {f}")
     except Exception as e:
-        print(f"skip include {f}: {e}")
-print("patched kgsl include")
+        print(f"skip {f}: {e}")
+print("patched kgsl done")
 PYEOF
-
-sed -i '/CONFIG_MSM_KGSL_TRACE/d' arch/arm64/configs/$DEFCONFIG
-echo "CONFIG_MSM_KGSL_TRACE=n" >> arch/arm64/configs/$DEFCONFIG
-echo "CONFIG_MSM_KGSL_TRACING=n" >> arch/arm64/configs/$DEFCONFIG
 
 # 6. Export Toolchain
 export ARCH=arm64
@@ -114,6 +116,7 @@ export CROSS_COMPILE=aarch64-linux-gnu-
 export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
 export CLANG_TRIPLE=aarch64-linux-gnu-
 export PATH=$HOME/proton-clang/bin:$PATH
+export CFLAGS="-I$PWD/drivers/gpu/msm -I$PWD/drivers/gpu/msm/adreno"
 
 # 7. Bersihin + Config
 echo "=== Clean + Defconfig ===" | tee -a build.log
