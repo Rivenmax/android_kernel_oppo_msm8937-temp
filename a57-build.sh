@@ -29,7 +29,7 @@ export OBJCOPY=llvm-objcopy
 export OBJDUMP=llvm-objdump
 export STRIP=llvm-strip
 
-mkdir -p build.log
+touch build.log
 echo "=== 1. Bersihin sisa build lama ===" | tee -a build.log
 rm -rf drivers/kernelsu
 rm -rf out
