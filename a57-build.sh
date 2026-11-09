@@ -39,7 +39,7 @@ echo "CONFIG_CC_STACKPROTECTOR=n" >> arch/arm64/configs/$DEFCONFIG
 sed -i '/CONFIG_BT_FM_SLIM/d' arch/arm64/configs/$DEFCONFIG
 sed -i '/CONFIG_BTFM_SLIM/d' arch/arm64/configs/$DEFCONFIG
 
-# 4. FIX BTFM_SLIM - CARA BENER!
+# 4. FIX BTFM_SLIM
 echo "=== Fix BTFM_SLIM ===" | tee -a build.log
 git checkout -- drivers/bluetooth/btfm_slim.h || true
 rm -f drivers/bluetooth/btfm_slim_stub.c
@@ -57,32 +57,43 @@ t = re.sub(r'btfm_slim_wakeup\s*\([^;]*?\)', '0', t)
 open(p, 'w').write(t)
 print("patched bluetooth-power.c")
 PYEOF
-grep -n "btfm_slim" drivers/bluetooth/bluetooth-power.c | tee -a build.log || echo "btfm_slim call udah ilang" | tee -a build.log
 
-# 5. FIX KGSL_TRACE - CARA BENER! JANGAN STUB HEADER!
-echo "=== Fix KGSL_TRACE - Cara Bener ===" | tee -a build.log
-# Balikin header asli, hapus stub yang salah
+# 5. FIX KGSL - INCLUDE + TRACE
+echo "=== Fix KGSL ===" | tee -a build.log
 git checkout -- drivers/gpu/msm/kgsl_trace.h || true
-rm -f drivers/gpu/msm/kgsl_trace.h.orig
-# Hapus kgsl_trace dari build, biar gak di-compile sama sekali
 sed -i '/kgsl_trace/d' drivers/gpu/msm/Makefile || true
 cat drivers/gpu/msm/Makefile | tee -a build.log
-# Patch semua file yang manggil trace_kgsl_... jadi 0 / kosong
 python3 << 'PYEOF'
-import re, glob, os
+import re, glob
+# 5a. Fix trace calls jadi do {} while(0)
 for f in glob.glob("drivers/gpu/msm/*.c") + glob.glob("drivers/gpu/msm/*.h"):
     try:
         t = open(f, errors="ignore").read()
         orig = t
-        # Ganti trace_kgsl_xxx(...) jadi do {} while (0)
         t = re.sub(r'\btrace_kgsl_[a-z_0-9]+\s*\([^;]*?\);', 'do { } while (0);', t)
         t = re.sub(r'\btrace_[a-z_0-9]+\s*\([^;]*?\);', 'do { } while (0);', t)
         if t != orig:
             open(f, 'w').write(t)
-            print(f"patched {f}")
+            print(f"patched trace {f}")
     except Exception as e:
         print(f"skip {f}: {e}")
-print("patched kgsl trace calls")
+# 5b. Fix #include <kgsl_*.h> jadi #include "kgsl_*.h" biar Clang ketemu!
+for f in glob.glob("drivers/gpu/msm/*.c") + glob.glob("drivers/gpu/msm/*.h") + glob.glob("drivers/gpu/msm/**/*.c", recursive=True) + glob.glob("drivers/gpu/msm/**/*.h", recursive=True):
+    try:
+        t = open(f, errors="ignore").read()
+        orig = t
+        # Hanya yang lokal: kgsl_, adreno_, msm_, a6xx_, etc. Jangan ubah <linux/...>!
+        t = re.sub(r'#include\s*<\s*(kgsl_[^>]+)>', r'#include "\1"', t)
+        t = re.sub(r'#include\s*<\s*(adreno_[^>]+)>', r'#include "\1"', t)
+        t = re.sub(r'#include\s*<\s*(msm_[^>]+)>', r'#include "\1"', t)
+        t = re.sub(r'#include\s*<\s*(a6xx_[^>]+)>', r'#include "\1"', t)
+        t = re.sub(r'#include\s*<\s*(a5xx_[^>]+)>', r'#include "\1"', t)
+        if t != orig:
+            open(f, 'w').write(t)
+            print(f"patched include {f}")
+    except Exception as e:
+        print(f"skip include {f}: {e}")
+print("patched kgsl include")
 PYEOF
 
 sed -i '/CONFIG_MSM_KGSL_TRACE/d' arch/arm64/configs/$DEFCONFIG
@@ -110,7 +121,7 @@ make clean 2>&1 | tee -a build.log || true
 make mrproper 2>&1 | tee -a build.log || true
 make ARCH=arm64 $DEFCONFIG 2>&1 | tee -a build.log
 
-# 8. BUILD KERNEL - INTINYA!
+# 8. BUILD KERNEL
 echo "=== Building Image.gz-dtb ===" | tee -a build.log
 make ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- CLANG_TRIPLE=aarch64-linux-gnu- -j$(nproc) Image.gz-dtb 2>&1 | tee -a build.log
 
