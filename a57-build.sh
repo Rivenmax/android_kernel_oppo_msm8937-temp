@@ -39,23 +39,18 @@ echo "CONFIG_CC_STACKPROTECTOR=n" >> arch/arm64/configs/$DEFCONFIG
 sed -i '/CONFIG_BT_FM_SLIM/d' arch/arm64/configs/$DEFCONFIG
 sed -i '/CONFIG_BTFM_SLIM/d' arch/arm64/configs/$DEFCONFIG
 
-# 4. FIX BTFM_SLIM - CARA BENER! JANGAN TIMPA HEADER!
-echo "=== Fix BTFM_SLIM - Cara Bener ===" | tee -a build.log
-# Balikin header asli kalau pernah ketimpa
+# 4. FIX BTFM_SLIM - CARA BENER!
+echo "=== Fix BTFM_SLIM ===" | tee -a build.log
 git checkout -- drivers/bluetooth/btfm_slim.h || true
-# Hapus stub lama yang salah
 rm -f drivers/bluetooth/btfm_slim_stub.c
 sed -i '/btfm_slim_stub/d' drivers/bluetooth/Makefile || true
-# Hapus btfm_slim.c asli dari build, karena file ini yang error di Clang
 sed -i '/btfm_slim\.o/d' drivers/bluetooth/Makefile || true
 sed -i '/btfm_slim/d' drivers/bluetooth/Makefile || true
 cat drivers/bluetooth/Makefile | tee -a build.log
-# Patch bluetooth-power.c: ganti panggilan btfm_slim_hw_init(...) jadi 0
 python3 << 'PYEOF'
 import re
 p = "drivers/bluetooth/bluetooth-power.c"
 t = open(p).read()
-# Ganti semua panggilan btfm_slim_hw_init(....) jadi 0, biar gak perlu header stub
 t = re.sub(r'btfm_slim_hw_init\s*\([^;]*?\)', '0', t)
 t = re.sub(r'btfm_slim_hw_deinit\s*\([^;]*?\)', '0', t)
 t = re.sub(r'btfm_slim_wakeup\s*\([^;]*?\)', '0', t)
@@ -64,19 +59,31 @@ print("patched bluetooth-power.c")
 PYEOF
 grep -n "btfm_slim" drivers/bluetooth/bluetooth-power.c | tee -a build.log || echo "btfm_slim call udah ilang" | tee -a build.log
 
-# 5. Fix kgsl_trace.h stub
-echo "=== Generate kgsl_trace.h stub ===" | tee -a build.log
-rm -f drivers/gpu/msm/kgsl_trace.h
-sed -i 's/kgsl_trace.c/kgsl_trace.o/' drivers/gpu/msm/Makefile || true
-grep -rho "trace_[a-z_0-9]*" drivers/gpu/msm/ | sort -u > /tmp/traces.txt || true
-cat /tmp/traces.txt | tee -a build.log
-echo "#ifndef __KGSL_TRACE_H" > drivers/gpu/msm/kgsl_trace.h
-echo "#define __KGSL_TRACE_H" >> drivers/gpu/msm/kgsl_trace.h
-echo "// auto-generated stub by Rivenmax" >> drivers/gpu/msm/kgsl_trace.h
-while read -r fn; do
-  echo "#define $fn(...) do { } while (0)" >> drivers/gpu/msm/kgsl_trace.h
-done < /tmp/traces.txt
-echo "#endif" >> drivers/gpu/msm/kgsl_trace.h
+# 5. FIX KGSL_TRACE - CARA BENER! JANGAN STUB HEADER!
+echo "=== Fix KGSL_TRACE - Cara Bener ===" | tee -a build.log
+# Balikin header asli, hapus stub yang salah
+git checkout -- drivers/gpu/msm/kgsl_trace.h || true
+rm -f drivers/gpu/msm/kgsl_trace.h.orig
+# Hapus kgsl_trace dari build, biar gak di-compile sama sekali
+sed -i '/kgsl_trace/d' drivers/gpu/msm/Makefile || true
+cat drivers/gpu/msm/Makefile | tee -a build.log
+# Patch semua file yang manggil trace_kgsl_... jadi 0 / kosong
+python3 << 'PYEOF'
+import re, glob, os
+for f in glob.glob("drivers/gpu/msm/*.c") + glob.glob("drivers/gpu/msm/*.h"):
+    try:
+        t = open(f, errors="ignore").read()
+        orig = t
+        # Ganti trace_kgsl_xxx(...) jadi do {} while (0)
+        t = re.sub(r'\btrace_kgsl_[a-z_0-9]+\s*\([^;]*?\);', 'do { } while (0);', t)
+        t = re.sub(r'\btrace_[a-z_0-9]+\s*\([^;]*?\);', 'do { } while (0);', t)
+        if t != orig:
+            open(f, 'w').write(t)
+            print(f"patched {f}")
+    except Exception as e:
+        print(f"skip {f}: {e}")
+print("patched kgsl trace calls")
+PYEOF
 
 sed -i '/CONFIG_MSM_KGSL_TRACE/d' arch/arm64/configs/$DEFCONFIG
 echo "CONFIG_MSM_KGSL_TRACE=n" >> arch/arm64/configs/$DEFCONFIG
