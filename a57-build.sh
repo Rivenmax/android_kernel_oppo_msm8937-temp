@@ -121,7 +121,7 @@ make ARCH=arm64 $DEFCONFIG 2>&1 | tee -a build.log
 # 7b. PATCH SUKISU BUAT KERNEL 4.9
 echo "=== Patch SukiSU Kernel 4.9 ===" | tee -a build.log
 python3 << 'PYEOF'
-import glob, os
+import glob, os, re
 for f in glob.glob("drivers/kernelsu/**/*.c", recursive=True) + glob.glob("drivers/kernelsu/**/*.h", recursive=True):
     try:
         t = open(f, errors="ignore").read()
@@ -138,15 +138,13 @@ for f in glob.glob("drivers/kernelsu/**/*.c", recursive=True) + glob.glob("drive
             else:
                 t2 = define + t2
         open(f, 'w').write(t2)
-        print(f"patched {f}")
     except Exception as e:
         print(f"skip {f}: {e}")
 print("SukiSU 4.9 patch done")
 PYEOF
 
-# 7c. FIX SHIM HEADER BUAT KERNEL 4.9 - SEKALIGUS SEMUA!
-echo "=== Fix Shim Headers Kernel 4.9 ===" | tee -a build.log
-# Shim 1: compiler_types.h
+# 7c. FIX SHIM HEADER
+echo "=== Fix Shim Headers ===" | tee -a build.log
 cat > include/linux/compiler_types.h << 'EOF'
 #ifndef _LINUX_COMPILER_TYPES_H
 #define _LINUX_COMPILER_TYPES_H
@@ -174,7 +172,6 @@ cat > include/linux/compiler_types.h << 'EOF'
 #endif
 #endif
 EOF
-# Shim 2: sched/task_stack.h - INI YANG ERROR SEKARANG!
 mkdir -p include/linux/sched
 cat > include/linux/sched/task_stack.h << 'EOF'
 #ifndef _LINUX_SCHED_TASK_STACK_H
@@ -189,15 +186,8 @@ cat > include/linux/sched/task_stack.h << 'EOF'
 #ifndef task_stack_size
 #define task_stack_size() THREAD_SIZE
 #endif
-#ifndef task_stack_vm_area
-#define task_stack_vm_area(task) (NULL)
-#endif
-#ifndef task_stack_end_corrupted
-static inline int task_stack_end_corrupted(struct task_struct *task) { return 0; }
-#endif
 #endif
 EOF
-# Shim 3: sched/mm.h - Sering dicari SukiSU baru!
 cat > include/linux/sched/mm.h << 'EOF'
 #ifndef _LINUX_SCHED_MM_H
 #define _LINUX_SCHED_MM_H
@@ -206,7 +196,6 @@ cat > include/linux/sched/mm.h << 'EOF'
 #include <linux/mm_types.h>
 #endif
 EOF
-# Shim 4: sched/signal.h - Sering dicari juga!
 cat > include/linux/sched/signal.h << 'EOF'
 #ifndef _LINUX_SCHED_SIGNAL_H
 #define _LINUX_SCHED_SIGNAL_H
@@ -214,15 +203,37 @@ cat > include/linux/sched/signal.h << 'EOF'
 #include <linux/signal.h>
 #endif
 EOF
-# Shim 5: sched/task.h
 cat > include/linux/sched/task.h << 'EOF'
 #ifndef _LINUX_SCHED_TASK_H
 #define _LINUX_SCHED_TASK_H
 #include <linux/sched.h>
 #endif
 EOF
-ls -l include/linux/compiler_types.h include/linux/sched/*.h | tee -a build.log
-cat include/linux/sched/task_stack.h | tee -a build.log
+
+# 7d. FIX VFS_GETATTR + STATX BUAT KERNEL 4.9 - INI YANG ERROR SEKARANG!
+echo "=== Fix vfs_getattr STATX 4.9 ===" | tee -a build.log
+python3 << 'PYEOF'
+import glob, re
+for f in glob.glob("drivers/kernelsu/**/*.c", recursive=True):
+    try:
+        t = open(f, errors="ignore").read()
+        orig = t
+        # Kernel 4.9: vfs_getattr(path, stat) cuma 2 argumen!
+        # Kernel baru: vfs_getattr(path, stat, STATX_UID, AT_STATX_SYNC_AS_STAT) 4 argumen!
+        # Ganti semua versi 4 argumen jadi 2 argumen!
+        t = re.sub(r'vfs_getattr\s*\(\s*([^,]+)\s*,\s*([^,]+)\s*,\s*STATX_[A-Z_]+\s*,\s*AT_STATX_[A-Z_]+\s*\)', r'vfs_getattr(\1, \2)', t)
+        t = re.sub(r'vfs_getattr\s*\(\s*([^,]+)\s*,\s*([^,]+)\s*,\s*[^,]+\s*,\s*[^)]+\)', r'vfs_getattr(\1, \2)', t)
+        # Kalau masih ada STATX_UID yang ketinggalan, definisiin jadi 0 biar gak error!
+        if "STATX_UID" in t and "#define STATX_UID" not in t:
+            t = "#ifndef STATX_UID\n#define STATX_UID 0\n#endif\n#ifndef AT_STATX_SYNC_AS_STAT\n#define AT_STATX_SYNC_AS_STAT 0\n#endif\n" + t
+        if t != orig:
+            open(f, 'w').write(t)
+            print(f"patched vfs_getattr {f}")
+    except Exception as e:
+        print(f"skip {f}: {e}")
+print("vfs_getattr patch done")
+PYEOF
+grep -rn "vfs_getattr" drivers/kernelsu/ | tee -a build.log
 
 # 8. BUILD KERNEL
 echo "=== Building Image.gz-dtb ===" | tee -a build.log
