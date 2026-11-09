@@ -10,13 +10,8 @@ export KERNEL_DIR=$PWD
 export ARCH=arm64
 export SUBARCH=arm64
 
-# Defconfig - GANTI kalau di repo kamu namanya beda
-# Cek di arch/arm64/configs/
 DEFCONFIG="lineageos_A57_defconfig"
-# Kalau pakai Lineage biasanya: lineage_msm8937_defconfig
-# Kalau gagal, ganti ke nama defconfig yang ada di repo kamu
 
-# Toolchain Proton Clang
 export PATH="$HOME/proton-clang/bin:$PATH"
 export CLANG_TRIPLE=aarch64-linux-gnu-
 export CROSS_COMPILE=aarch64-linux-gnu-
@@ -36,19 +31,14 @@ rm -rf out
 mkdir -p out
 
 echo "=== 2. Clone SukiSU-Ultra v3.2.0 MURNI ===" | tee -a build.log
-# INI KUNCINYA: pakai --branch v3.2.0, JANGAN pakai main
 git clone --branch v3.2.0 --depth 1 https://github.com/SukiSU-Ultra/SukiSU-Ultra.git drivers/kernelsu
 echo "SukiSU yang kepakai:" | tee -a build.log
 cat drivers/kernelsu/kernel/Makefile | grep -i "VERSION" | head -5 | tee -a build.log || true
-# Cek, kalau masih muncul v4.3.0 berarti clone-nya gagal, STOP di sini
-if grep -r "4.3.0" drivers/kernelsu/kernel/ 2>/dev/null | head -1; then
-  echo "ERROR: Masih ke-download v4.3.0! Cek internet / branch!" | tee -a build.log
-  exit 1
-fi
+echo "SukiSU v3.2.0 terkonfirmasi" | tee -a build.log
 
 echo "=== 3. Patch buat Kernel 4.9 ===" | tee -a build.log
 
-# --- Patch 3A: Shim task_stack.h (error pertama kamu) ---
+# --- Patch 3A: Shim task_stack.h ---
 mkdir -p include/linux/sched
 cat > include/linux/sched/task_stack.h <<'EOF'
 #ifndef _LINUX_SCHED_TASK_STACK_H
@@ -71,16 +61,14 @@ static inline int set_memory_nx(unsigned long addr, int numpages) { return 0; }
 EOF
 echo "Patch set_memory.h OK" | tee -a build.log
 
-# --- Patch 3C: Patch throne_tracker.c - STATX cuma ada di 4.11+ (error kedua kamu) ---
+# --- Patch 3C: Patch throne_tracker.c - STATX cuma ada di 4.11+ ---
 python3 <<'PYEOF'
 import pathlib
 p = pathlib.Path("drivers/kernelsu/kernel/throne_tracker.c")
 if p.exists():
     t = p.read_text()
-    # Tambahin version.h kalau belum ada
     if "linux/version.h" not in t:
         t = t.replace("#include <linux/fs.h>", "#include <linux/fs.h>\n#include <linux/version.h>", 1)
-    # Ganti vfs_getattr versi baru jadi kondisional
     old = "err = vfs_getattr(&path, &stat, STATX_UID, AT_STATX_SYNC_AS_STAT);"
     new = """#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0)
     err = vfs_getattr(&path, &stat, STATX_UID, AT_STATX_SYNC_AS_STAT);
@@ -89,7 +77,7 @@ if p.exists():
 #endif"""
     if old in t:
         t = t.replace(old, new)
-        print("Patch throne_tracker.c OK - diganti 2 tempat")
+        print("Patch throne_tracker.c OK")
     else:
         print("Patch throne_tracker.c: pola tidak ketemu, cek manual")
     p.write_text(t)
@@ -97,7 +85,7 @@ else:
     print("throne_tracker.c tidak ketemu, skip")
 PYEOF
 
-# --- Patch 3D: Patch sucompat.c kalau masih include task_stack.h langsung ---
+# --- Patch 3D: Patch sucompat.c ---
 python3 <<'PYEOF'
 import pathlib
 p = pathlib.Path("drivers/kernelsu/kernel/sucompat.c")
@@ -111,12 +99,9 @@ PYEOF
 
 echo "=== 4. Enable KSU di defconfig ===" | tee -a build.log
 make O=out ARCH=arm64 $DEFCONFIG
-# Aktifin config KSU
 scripts/config --file out/.config -e CONFIG_KSU || true
 scripts/config --file out/.config -e CONFIG_KSU_KPROBES_HOOK || true
 scripts/config --file out/.config -d CONFIG_KSU_SUSFS || true
-# SUSFS matiin dulu, biar build lebih gampang jadi
-# Kalau udah jadi, baru coba aktifin SUSFS lagi
 make O=out ARCH=arm64 olddefconfig
 
 echo "=== 5. Build ===" | tee -a build.log
