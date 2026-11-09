@@ -12,12 +12,20 @@ which clang | tee -a build.log
 which aarch64-linux-gnu-gcc | tee -a build.log
 ls $HOME/proton-clang/bin/ | tee -a build.log
 
-# 2. Setup SukiSU Ultra v3.2.0
+# 2. Setup SukiSU Ultra v3.2.0 + PATCH BUAT KERNEL 4.9!
 echo "=== Setup SukiSU ===" | tee -a build.log
 rm -rf drivers/kernelsu
 curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s v3.2.0
 echo "CEK drivers/kernelsu" | tee -a build.log
 ls drivers/kernelsu/ | tee -a build.log
+echo "=== Patch SukiSU buat Kernel 4.9 ===" | tee -a build.log
+# Kernel 4.9 gak kenal MODULE_IMPORT_NS, hapus semua!
+grep -r "MODULE_IMPORT_NS" drivers/kernelsu/ | tee -a build.log || echo "gak ada MODULE_IMPORT_NS" | tee -a build.log
+find drivers/kernelsu -name "*.c" -o -name "*.h" | xargs sed -i '/MODULE_IMPORT_NS/d' || true
+# Cek lagi, harusnya udah ilang!
+grep -r "MODULE_IMPORT_NS" drivers/kernelsu/ | tee -a build.log || echo "MODULE_IMPORT_NS udah ilang, aman!" | tee -a build.log
+# Kernel 4.9 juga gak kenal MODULE_IMPORT_NS di Kconfig, matiin KPM sekalian biar aman
+grep -r "KPM" drivers/kernelsu/Kconfig | tee -a build.log || true
 
 # 3. Config A57
 DEFCONFIG=msm8937-perf_defconfig
@@ -72,11 +80,8 @@ git checkout -- drivers/gpu/msm/kgsl_trace.h || true
 git checkout -- drivers/gpu/msm/adreno_trace.h || true
 git checkout -- drivers/gpu/msm/kgsl_trace.c || true
 git checkout -- drivers/gpu/msm/adreno_trace.c || true
-# Hapus trace.o dari SEMUA Makefile di drivers/gpu/msm, bukan cuma 1!
 find drivers/gpu/msm -name "Makefile*" -exec sed -i '/kgsl_trace/d; /adreno_trace/d; /kgsl_events/d' {} \;
-# Tambahin -I biar ./adreno_trace.h ketemu!
 grep -q "ccflags-y += -I" drivers/gpu/msm/Makefile || echo 'ccflags-y += -I$(srctree)/drivers/gpu/msm -I$(src)' >> drivers/gpu/msm/Makefile
-cat drivers/gpu/msm/Makefile | tee -a build.log
 grep -r "adreno_trace" drivers/gpu/msm --include="Makefile" | tee -a build.log || echo "adreno_trace udah ilang dari Makefile" | tee -a build.log
 python3 << 'PYEOF'
 import re, glob, os
