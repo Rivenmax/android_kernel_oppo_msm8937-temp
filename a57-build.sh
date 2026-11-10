@@ -57,6 +57,15 @@ static inline int set_memory_nx(unsigned long addr, int numpages) { return 0; }
 EOF
 echo "Patch set_memory.h OK" | tee -a build.log
 
+# --- Patch 3E: Shim compiler_types.h (cuma ada di 4.11+, di 4.9 nggak ada) ---
+cat > include/linux/compiler_types.h <<'EOF'
+#ifndef _LINUX_COMPILER_TYPES_H
+#define _LINUX_COMPILER_TYPES_H
+#include <linux/compiler.h>
+#endif
+EOF
+echo "Patch compiler_types.h OK" | tee -a build.log
+
 # --- Patch 3C: Patch throne_tracker.c - STATX cuma ada di 4.11+ ---
 python3 <<'PYEOF'
 import pathlib
