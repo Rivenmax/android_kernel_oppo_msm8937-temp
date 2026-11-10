@@ -147,7 +147,6 @@ for f in glob.glob("drivers/kernelsu/kernel/*.c"):
     p = pathlib.Path(f)
     t = p.read_text()
     if "proc_ops" in t and "KERNEL_VERSION(5,6,0)" not in t:
-        # sisipin habis include pertama
         lines = t.splitlines(True)
         idx = 0
         for i, line in enumerate(lines):
@@ -156,6 +155,18 @@ for f in glob.glob("drivers/kernelsu/kernel/*.c"):
         lines.insert(idx, compat)
         p.write_text("".join(lines))
         print(f"Patch proc_ops OK: {f}")
+PYEOF
+
+# --- Patch 3I: selinux_state cuma ada di kernel baru, di 4.9 pake selinux_enforcing ---
+python3 <<'PYEOF'
+import pathlib, glob
+for f in glob.glob("drivers/kernelsu/kernel/**/*.c", recursive=True):
+    p = pathlib.Path(f)
+    t = p.read_text()
+    if "selinux_state.enforcing" in t:
+        t = t.replace("selinux_state.enforcing", "selinux_enforcing")
+        p.write_text(t)
+        print(f"Patch selinux_state OK: {f}")
 PYEOF
 
 # --- Patch 5: Hapus MODULE_IMPORT_NS, nggak ada di kernel 4.9 ---
