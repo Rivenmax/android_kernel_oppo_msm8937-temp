@@ -33,7 +33,11 @@ git clone --branch v0.9.5 --depth 1 https://github.com/tiann/KernelSU.git driver
 echo "KernelSU v0.9.5 terkonfirmasi" | tee -a build.log
 
 echo "=== 2b. Clone SUSFS v1.5.2 buat KSU 0.9.5 ===" | tee -a build.log
-git clone --branch v1.5.2 --depth 1 https://gitlab.com/simonpunk/susfs4ksu.git susfs4ksu
+git clone --depth 1 https://gitlab.com/simonpunk/susfs4ksu.git susfs4ksu
+cd susfs4ksu
+git fetch --tags --depth 1 origin tag v1.5.2 2>/dev/null || git fetch --tags 2>/dev/null || true
+git checkout v1.5.2 2>/dev/null || echo "Tag v1.5.2 nggak ketemu, pake main aja" | tee -a ../build.log
+cd ..
 ls susfs4ksu/kernel_patches/ | tee -a build.log
 
 echo "=== 3. Patch SUSFS ===" | tee -a build.log
