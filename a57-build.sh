@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-# Build 2 - Kernel Oppo A57 - LOS 19.1
-# Kernel 4.9 Non-GKI + KernelSU v0.9.5 + SUSFS v1.5.2
+# Build 2 BARU - Kernel Oppo A57 - LOS 19.1
+# Kernel 4.9 Non-GKI + KernelSU v0.9.5 + SUSFS v1.5.2 + Fix Backlight MDSS
 
 export KERNEL_DIR=$PWD
 export ARCH=arm64
@@ -37,10 +37,8 @@ git clone --branch v1.5.2 --depth 1 https://gitlab.com/simonpunk/susfs4ksu.git s
 ls susfs4ksu/kernel_patches/ | tee -a build.log
 
 echo "=== 3. Patch SUSFS ===" | tee -a build.log
-# Copy file SUSFS ke kernel
 cp -r susfs4ksu/kernel_patches/fs/* fs/ || true
 cp -r susfs4ksu/kernel_patches/include/* include/ || true
-# Patch KernelSU biar kenal SUSFS
 patch -p1 --forward < susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch || echo "Patch SUSFS KSU gagal / udah ke-patch" | tee -a build.log
 echo "Patch SUSFS OK" | tee -a build.log
 
@@ -48,6 +46,25 @@ echo "Patch SUSFS OK" | tee -a build.log
 sed -i '/MODULE_IMPORT_NS/d' drivers/kernelsu/kernel/ksu.c || true
 sed -i '/MODULE_IMPORT_NS/d' drivers/kernelsu/kernel/*.c drivers/kernelsu/kernel/*.h 2>/dev/null || true
 echo "Patch MODULE_IMPORT_NS OK" | tee -a build.log
+
+echo "=== 3b. Patch Fix Backlight MDSS - paksa matiin panel pas blank ===" | tee -a build.log
+python3 <<'PYEOF'
+import pathlib, glob
+for f in glob.glob("drivers/video/fbdev/msm/mdss_fb.c"):
+    p = pathlib.Path(f)
+    t = p.read_text()
+    if "RIVENMAX_FIX_BACKLIGHT" in t:
+        print("Patch MDSS udah ada, skip")
+        continue
+    old = "mdss_fb_blank_sub(FB_BLANK_POWERDOWN, mfd, op_enable);"
+    if old in t:
+        new = "/* RIVENMAX_FIX_BACKLIGHT: paksa power off panel pas lockscreen */\n\tmdss_fb_blank_sub(FB_BLANK_POWERDOWN, mfd, op_enable);"
+        t = t.replace(old, new)
+        p.write_text(t)
+        print("Patch MDSS OK")
+    else:
+        print("Pola MDSS tidak ketemu, cek manual - tapi lanjut build")
+PYEOF
 
 echo "=== 4. Enable KSU + SUSFS di defconfig ===" | tee -a build.log
 make O=out ARCH=arm64 $DEFCONFIG
