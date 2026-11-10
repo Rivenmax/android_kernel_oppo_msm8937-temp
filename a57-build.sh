@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# Build Kernel Oppo A57 - LOS 19.1
+# Build Kernel 【entity-Oppo¦canonical_name=Oppo】 A57 - LOS 19.1
 # Kernel 4.9 Non-GKI + SukiSU-Ultra v3.2.0 MURNI
 
 export KERNEL_DIR=$PWD
@@ -100,6 +100,24 @@ if p.exists():
         t = t.replace("linux/sched/task_stack.h", "linux/sched.h")
         p.write_text(t)
         print("Patch sucompat.c OK")
+PYEOF
+
+# --- Patch 3F: Patch core_hook.c - security_add_hooks di 4.9 cuma 2 argumen, bukan 3 ---
+python3 <<'PYEOF'
+import pathlib
+p = pathlib.Path("drivers/kernelsu/kernel/core_hook.c")
+if p.exists():
+    t = p.read_text()
+    old = 'security_add_hooks(ksu_hooks, ARRAY_SIZE(ksu_hooks), "ksu")'
+    new = 'security_add_hooks(ksu_hooks, ARRAY_SIZE(ksu_hooks))'
+    if old in t:
+        t = t.replace(old, new)
+        print("Patch core_hook.c OK")
+    else:
+        print("Patch core_hook.c pola tidak ketemu, cek manual")
+    p.write_text(t)
+else:
+    print("core_hook.c tidak ketemu, skip")
 PYEOF
 
 # --- Patch 5: Hapus MODULE_IMPORT_NS, nggak ada di kernel 4.9 ---
