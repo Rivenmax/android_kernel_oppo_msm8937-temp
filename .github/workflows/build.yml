@@ -1,4 +1,4 @@
-name: Build SukiSU Ultra v3.2.0 buat A57 - LOS 19.1 - RIVENMAX
+name: Build Kernel 4.9 Non-GKI + KernelSU v0.9.5 buat A57 - LOS 19.1 - RIVENMAX
 
 on:
   workflow_dispatch:
