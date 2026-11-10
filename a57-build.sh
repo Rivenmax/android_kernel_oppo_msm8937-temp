@@ -23,15 +23,11 @@ mkdir -p out
 echo "=== 2. Clone KSU 0.9.5 ===" | tee -a build.log
 git clone --branch v0.9.5 --depth 1 https://github.com/tiann/KernelSU.git drivers/kernelsu
 
-echo "=== 2b. Clone SUSFS v1.5.2 BUAT 0.9.5 ===" | tee -a build.log
-git clone https://gitlab.com/simonpunk/susfs4ksu.git susfs4ksu
-cd susfs4ksu
-git fetch --tags
-git checkout v1.5.2
-cd ..
+echo "=== 2b. Clone SUSFS v1.5.2 BUAT 0.9.5 - DARI GITHUB ===" | tee -a build.log
+git clone --branch v1.5.2 https://github.com/simonpunk/susfs4ksu.git susfs4ksu
 git -C susfs4ksu log --oneline -1 | tee -a build.log
 ls susfs4ksu/kernel_patches/ | tee -a build.log
-ls susfs4ksu/kernel_patches/KernelSU/ | tee -a build.loga
+ls susfs4ksu/kernel_patches/KernelSU/ | tee -a build.log
 
 echo "=== 3. Patch SUSFS 4.9 ===" | tee -a build.log
 patch -p1 --forward --verbose < susfs4ksu/kernel_patches/50_add_susfs_in_kernel-4.9.patch 2>&1 | tee -a build.log || echo "Patch SUSFS kernel GAGAL" | tee -a build.log
