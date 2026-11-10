@@ -157,7 +157,7 @@ for f in glob.glob("drivers/kernelsu/kernel/*.c"):
         print(f"Patch proc_ops OK: {f}")
 PYEOF
 
-# --- Patch 3I: selinux_state cuma ada di kernel baru, di 4.9 pake selinux_enforcing ---
+# --- Patch 3I: selinux_state cuma ada di kernel baru, di 4.9 pake selinux_enforcing + deklarasi extern ---
 python3 <<'PYEOF'
 import pathlib, glob
 for f in glob.glob("drivers/kernelsu/kernel/**/*.c", recursive=True):
@@ -165,6 +165,15 @@ for f in glob.glob("drivers/kernelsu/kernel/**/*.c", recursive=True):
     t = p.read_text()
     if "selinux_state.enforcing" in t:
         t = t.replace("selinux_state.enforcing", "selinux_enforcing")
+        # tambahin deklarasi extern di bawah include terakhir, biar compiler kenal
+        if "extern int selinux_enforcing" not in t:
+            lines = t.splitlines(True)
+            idx = 0
+            for i, line in enumerate(lines):
+                if line.startswith("#include"):
+                    idx = i + 1
+            lines.insert(idx, "extern int selinux_enforcing;\n")
+            t = "".join(lines)
         p.write_text(t)
         print(f"Patch selinux_state OK: {f}")
 PYEOF
