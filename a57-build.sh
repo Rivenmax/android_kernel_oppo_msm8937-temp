@@ -23,14 +23,21 @@ mkdir -p out
 echo "=== 2. Clone KSU 0.9.5 ===" | tee -a build.log
 git clone --branch v0.9.5 --depth 1 https://github.com/tiann/KernelSU.git drivers/kernelsu
 
-echo "=== 2b. Clone SUSFS v1.5.2 BUAT 0.9.5 - DARI GITHUB ===" | tee -a build.log
-git clone --branch v1.5.2 https://github.com/simonpunk/susfs4ksu.git susfs4ksu
+echo "=== 2b. Clone SUSFS DARI GITLAB (yang bisa di-clone) ===" | tee -a build.log
+git clone https://gitlab.com/simonpunk/susfs4ksu.git susfs4ksu
+echo "--- List TAG yang ada di GitLab ---" | tee -a build.log
+git -C susfs4ksu tag | tee -a build.log || true
+git -C susfs4ksu branch -a | tee -a build.log || true
+echo "--- Coba checkout v1.5.2, kalau gagal pake main ---" | tee -a build.log
+git -C susfs4ksu checkout v1.5.2 2>&1 | tee -a build.log || echo "Tag v1.5.2 nggak ada di GitLab, pake main aja" | tee -a build.log
 git -C susfs4ksu log --oneline -1 | tee -a build.log
 ls susfs4ksu/kernel_patches/ | tee -a build.log
 ls susfs4ksu/kernel_patches/KernelSU/ | tee -a build.log
 
 echo "=== 3. Patch SUSFS 4.9 ===" | tee -a build.log
-patch -p1 --forward --verbose < susfs4ksu/kernel_patches/50_add_susfs_in_kernel-4.9.patch 2>&1 | tee -a build.log || echo "Patch SUSFS kernel GAGAL" | tee -a build.log
+# Cari patch 4.9 yang ada, jangan maksa nama file
+ls susfs4ksu/kernel_patches/*4.9* 2>&1 | tee -a build.log || true
+patch -p1 --forward --verbose < susfs4ksu/kernel_patches/50_add_susfs_in_kernel-4.9.patch 2>&1 | tee -a build.log || echo "Patch SUSFS kernel 4.9 GAGAL, coba patch lain" | tee -a build.log
 patch -p1 --forward --verbose < susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch 2>&1 | tee -a build.log || echo "Patch SUSFS KSU GAGAL" | tee -a build.log
 sed -i '/MODULE_IMPORT_NS/d' drivers/kernelsu/kernel/ksu.c || true
 sed -i '/MODULE_IMPORT_NS/d' drivers/kernelsu/kernel/*.c drivers/kernelsu/kernel/*.h 2>/dev/null || true
