@@ -129,6 +129,35 @@ else:
     print("core_hook.c tidak ketemu, skip")
 PYEOF
 
+# --- Patch 3H: proc_ops cuma ada di kernel 5.6+, di 4.9 pake file_operations ---
+python3 <<'PYEOF'
+import pathlib, glob
+compat = """
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,6,0)
+#define proc_ops file_operations
+#define proc_read read
+#define proc_write write
+#define proc_lseek llseek
+#define proc_release release
+#define proc_open open
+#define proc_poll poll
+#endif
+"""
+for f in glob.glob("drivers/kernelsu/kernel/*.c"):
+    p = pathlib.Path(f)
+    t = p.read_text()
+    if "proc_ops" in t and "KERNEL_VERSION(5,6,0)" not in t:
+        # sisipin habis include pertama
+        lines = t.splitlines(True)
+        idx = 0
+        for i, line in enumerate(lines):
+            if line.startswith("#include"):
+                idx = i + 1
+        lines.insert(idx, compat)
+        p.write_text("".join(lines))
+        print(f"Patch proc_ops OK: {f}")
+PYEOF
+
 # --- Patch 5: Hapus MODULE_IMPORT_NS, nggak ada di kernel 4.9 ---
 sed -i '/MODULE_IMPORT_NS/d' drivers/kernelsu/kernel/ksu.c || true
 sed -i '/MODULE_IMPORT_NS/d' drivers/kernelsu/kernel/*.c drivers/kernelsu/kernel/*.h 2>/dev/null || true
