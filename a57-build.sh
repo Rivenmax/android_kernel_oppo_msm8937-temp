@@ -1,10 +1,8 @@
 #!/bin/bash
 set -e
 
-# ============================================
-# Build Kernel 【entity-Oppo¦canonical_name=Oppo】 A57 - LOS 19.1
+# Build Kernel Oppo A57 - LOS 19.1
 # Kernel 4.9 Non-GKI + SukiSU-Ultra v3.2.0 MURNI
-# ============================================
 
 export KERNEL_DIR=$PWD
 export ARCH=arm64
@@ -16,7 +14,6 @@ export PATH="$HOME/proton-clang/bin:$PATH"
 export CLANG_TRIPLE=aarch64-linux-gnu-
 export CROSS_COMPILE=aarch64-linux-gnu-
 export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
-export CC=clang
 export LD=ld.lld
 export AR=llvm-ar
 export NM=llvm-nm
@@ -32,7 +29,6 @@ mkdir -p out
 
 echo "=== 2. Clone SukiSU-Ultra v3.2.0 MURNI ===" | tee -a build.log
 git clone --branch v3.2.0 --depth 1 https://github.com/SukiSU-Ultra/SukiSU-Ultra.git drivers/kernelsu
-echo "SukiSU yang kepakai:" | tee -a build.log
 cat drivers/kernelsu/kernel/Makefile | grep -i "VERSION" | head -5 | tee -a build.log || true
 echo "SukiSU v3.2.0 terkonfirmasi" | tee -a build.log
 
@@ -48,7 +44,7 @@ cat > include/linux/sched/task_stack.h <<'EOF'
 EOF
 echo "Patch task_stack.h OK" | tee -a build.log
 
-# --- Patch 3B: Shim set_memory.h (wajib buat < 4.19) ---
+# --- Patch 3B: Shim set_memory.h (wajib buat < 4.10) ---
 cat > include/linux/set_memory.h <<'EOF'
 #ifndef _LINUX_SET_MEMORY_H
 #define _LINUX_SET_MEMORY_H
@@ -68,8 +64,8 @@ p = pathlib.Path("drivers/kernelsu/kernel/throne_tracker.c")
 if p.exists():
     t = p.read_text()
     if "linux/version.h" not in t:
-        t = t.replace("#include <linux/fs.h>", "#include <linux/fs.h>\n#include <linux/version.h>", 1)
-    old = "err = vfs_getattr(&path, &stat, STATX_UID, AT_STATX_SYNC_AS_STAT);"
+        t = t.replace('#include <linux/fs.h>', "#include <linux/fs.h>\n#include <linux/version.h>", 1)
+    old = """err = vfs_getattr(&path, &stat, STATX_UID, AT_STATX_SYNC_AS_STAT);"""
     new = """#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0)
     err = vfs_getattr(&path, &stat, STATX_UID, AT_STATX_SYNC_AS_STAT);
 #else
@@ -79,7 +75,7 @@ if p.exists():
         t = t.replace(old, new)
         print("Patch throne_tracker.c OK")
     else:
-        print("Patch throne_tracker.c: pola tidak ketemu, cek manual")
+        print("Patch throne_tracker.c pola tidak ketemu, cek manual")
     p.write_text(t)
 else:
     print("throne_tracker.c tidak ketemu, skip")
@@ -97,6 +93,11 @@ if p.exists():
         print("Patch sucompat.c OK")
 PYEOF
 
+# --- Patch 5: Hapus MODULE_IMPORT_NS, nggak ada di kernel 4.9 ---
+sed -i '/MODULE_IMPORT_NS/d' drivers/kernelsu/kernel/ksu.c || true
+sed -i '/MODULE_IMPORT_NS/d' drivers/kernelsu/kernel/*.c drivers/kernelsu/kernel/*.h 2>/dev/null || true
+echo "Patch MODULE_IMPORT_NS OK" | tee -a build.log
+
 echo "=== 4. Enable KSU di defconfig ===" | tee -a build.log
 make O=out ARCH=arm64 $DEFCONFIG
 scripts/config --file out/.config -e CONFIG_KSU || true
@@ -113,6 +114,7 @@ make -j$(nproc --all) O=out ARCH=arm64 \
   2>&1 | tee -a build.log
 
 echo "=== 6. Cek hasil ===" | tee -a build.log
-ls -lh out/arch/arm64/boot/Image.gz-dtb || ls -lh out/arch/arm64/boot/Image* | tee -a build.log
-cp out/arch/arm64/boot/Image.gz-dtb ./Image.gz-dtb 2>/dev/null || cp out/arch/arm64/boot/Image.gz ./Image.gz-dtb 2>/dev/null || true
+ls -lh out/arch/arm64/boot/Image.gz-dtb | tee -a build.log
+ls -lh out/arch/arm64/boot/Image* | tee -a build.log
+cp out/arch/arm64/boot/Image.gz-dtb ./Image.gz-dtb 2>/dev/null || cp out/arch/arm64/boot/Image.gz ./Image.gz-dtb 2>/dev/null
 echo "BUILD SELESAI" | tee -a build.log
