@@ -1422,4 +1422,4 @@ endif
 
 source "lib/Kconfig"
 
-source "drivers/kernelsu/Kconfig"
+source "drivers/kernelsu/kernel/Kconfig"
