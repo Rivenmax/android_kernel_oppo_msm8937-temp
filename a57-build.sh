@@ -31,7 +31,7 @@ git checkout v1.5.2
 cd ..
 git -C susfs4ksu log --oneline -1 | tee -a build.log
 ls susfs4ksu/kernel_patches/ | tee -a build.log
-ls susfs4ksu/kernel_patches/KernelSU/ | tee -a build.log
+ls susfs4ksu/kernel_patches/KernelSU/ | tee -a build.loga
 
 echo "=== 3. Patch SUSFS 4.9 ===" | tee -a build.log
 patch -p1 --forward --verbose < susfs4ksu/kernel_patches/50_add_susfs_in_kernel-4.9.patch 2>&1 | tee -a build.log || echo "Patch SUSFS kernel GAGAL" | tee -a build.log
