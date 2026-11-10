@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# Build Kernel 【entity-Oppo¦canonical_name=Oppo】 A57 - LOS 19.1
+# Build Kernel Oppo A57 - LOS 19.1
 # Kernel 4.9 Non-GKI + SukiSU-Ultra v3.2.0 MURNI
 
 export KERNEL_DIR=$PWD
@@ -43,6 +43,15 @@ cat > include/linux/sched/task_stack.h <<'EOF'
 #endif
 EOF
 echo "Patch task_stack.h OK" | tee -a build.log
+
+# --- Patch 3G: Shim sched/task.h (di 4.9 isinya masih di sched.h) ---
+cat > include/linux/sched/task.h <<'EOF'
+#ifndef _LINUX_SCHED_TASK_H
+#define _LINUX_SCHED_TASK_H
+#include <linux/sched.h>
+#endif
+EOF
+echo "Patch sched/task.h OK" | tee -a build.log
 
 # --- Patch 3B: Shim set_memory.h (wajib buat < 4.10) ---
 cat > include/linux/set_memory.h <<'EOF'
