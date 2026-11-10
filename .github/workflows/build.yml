@@ -19,7 +19,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc bison flex libssl-dev libelf-dev make gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi python3
+          sudo apt-get install -y bc bison flex libssl-dev libelf-dev make gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
 
       - name: Setup Proton Clang Toolchain
         run: |
@@ -33,7 +33,7 @@ jobs:
           chmod +x a57-build.sh
           bash a57-build.sh
 
-      - name: Upload LOG
+      - name: Upload Log
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -41,10 +41,11 @@ jobs:
           path: build.log
 
       - name: Upload Boot
-        if: success()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Image-gz-dtb
           path: |
+            out/arch/arm64/boot/Image.gz-dtb
             Image.gz-dtb
-            arch/arm64/boot/Image.gz-dtb
+            build.log
