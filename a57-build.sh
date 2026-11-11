@@ -4,12 +4,6 @@ export KERNEL_DIR=$PWD
 export ARCH=arm64
 export SUBARCH=arm64
 DEFCONFIG="lineageos_A57_defconfig"
-#!/bin/bash
-set -e
-export KERNEL_DIR=$PWD
-export ARCH=arm64
-export SUBARCH=arm64
-DEFCONFIG="lineageos_A57_defconfig"
 export PATH="$HOME/proton-clang/bin:$PATH"
 export CLANG_TRIPLE=aarch64-linux-gnu-
 export CROSS_COMPILE=aarch64-linux-gnu-
@@ -53,7 +47,6 @@ for src in glob.glob("susfs4ksu/kernel_patches/**/*", recursive=True):
                 os.makedirs(d, exist_ok=True)
             shutil.copy(src, dst)
             print(f"Copy manual: {src} -> {dst}")
-print(f"kernel/susfs ada? {os.path.exists('kernel/susfs')}")
 p = pathlib.Path("kernel/Makefile")
 t = p.read_text()
 if "susfs" in t.lower():
@@ -71,15 +64,13 @@ if "susfs" not in t.lower():
     print("FIX fs/Makefile OK")
 else:
     print("fs/Makefile udah ada susfs")
-# --- FIX fs.h yang salah tempat di Build 41 ---
+# --- FIX fs.h untuk 2 struct ---
 p = pathlib.Path("include/linux/fs.h")
 t = p.read_text()
-# 1. Hapus semua android_kabi_reserved yang nempel salah tempat (yang jadi variabel nganggur)
 t2 = re.sub(r"\n\s*u64 android_kabi_reserved[123];", "", t)
 if t2 != t:
-    print(f"FIX fs.h - hapus {t.count('android_kabi_reserved') - t2.count('android_kabi_reserved')} baris android_kabi_reserved yang salah tempat")
+    print(f"FIX fs.h - hapus {t.count('android_kabi_reserved') - t2.count('android_kabi_reserved')} baris yang salah tempat")
     t = t2
-# 2. Pastiin susfs.h include ada
 if "susfs" not in t.lower():
     if "#include <linux/dcache.h>" in t:
         t = t.replace("#include <linux/dcache.h>", "#include <linux/dcache.h>\n#ifdef CONFIG_KSU_SUSFS\n#include <linux/susfs.h>\n#endif")
@@ -90,20 +81,17 @@ else:
     print("fs.h udah ada susfs include")
     p.write_text(t)
     t = p.read_text()
-# 3. Tempel yang bener di dalam struct super_block
-if "struct super_block {" in t:
-    # cek udah ada belum di dalam struct
-    m = re.search(r"struct super_block \{.*?^};", t, re.DOTALL | re.MULTILINE)
+# Tempel ke struct super_block DAN struct inode
+for struct_name in ["struct super_block {", "struct inode {"]:
+    m = re.search(rf"{re.escape(struct_name)}.*?^}};", t, re.DOTALL | re.MULTILINE)
     if m and "android_kabi_reserved1" not in m.group(0):
-        t = t.replace("struct super_block {", "struct super_block {\n#ifdef CONFIG_KSU_SUSFS\n\tu64 android_kabi_reserved1;\n\tu64 android_kabi_reserved2;\n\tu64 android_kabi_reserved3;\n#endif", 1)
-        print("FIX fs.h OK - android_kabi_reserved ditempel di dalam struct super_block")
-        p.write_text(t)
+        t = t.replace(struct_name, struct_name + "\n#ifdef CONFIG_KSU_SUSFS\n\tu64 android_kabi_reserved1;\n\tu64 android_kabi_reserved2;\n\tu64 android_kabi_reserved3;\n#endif", 1)
+        print(f"FIX fs.h OK - android_kabi_reserved ditempel di {struct_name}")
     elif m:
-        print("FIX fs.h OK - struct super_block udah ada android_kabi_reserved")
+        print(f"FIX fs.h OK - {struct_name} udah ada android_kabi_reserved")
     else:
-        print("FIX fs.h GAGAL - struct super_block tidak ketemu pola };")
-else:
-    print("FIX fs.h GAGAL - struct super_block { tidak ketemu")
+        print(f"FIX fs.h GAGAL - {struct_name} tidak ketemu")
+p.write_text(t)
 # Kconfig SUSFS
 p = pathlib.Path("drivers/kernelsu/Kconfig")
 t = p.read_text() if p.exists() else ""
