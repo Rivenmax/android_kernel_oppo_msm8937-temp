@@ -23,61 +23,61 @@ mkdir -p out
 echo "=== 2. Clone KSU 0.9.5 ===" | tee -a build.log
 git clone --branch v0.9.5 --depth 1 https://github.com/tiann/KernelSU.git drivers/kernelsu
 
-echo "=== 2b. Clone SUSFS DARI GITLAB (yang bisa di-clone) ===" | tee -a build.log
-git clone https://gitlab.com/simonpunk/susfs4ksu.git susfs4ksu
-echo "--- List TAG yang ada di GitLab ---" | tee -a build.log
-git -C susfs4ksu tag | tee -a build.log || true
-git -C susfs4ksu branch -a | tee -a build.log || true
-echo "--- Coba checkout v1.5.2, kalau gagal pake main ---" | tee -a build.log
-git -C susfs4ksu checkout v1.5.2 2>&1 | tee -a build.log || echo "Tag v1.5.2 nggak ada di GitLab, pake main aja" | tee -a build.log
+echo "=== 2b. Clone SUSFS 1.4.2-kernel-4.9 - TAG BENER ===" | tee -a build.log
+git clone --branch 1.4.2-kernel-4.9 https://gitlab.com/simonpunk/susfs4ksu.git susfs4ksu
 git -C susfs4ksu log --oneline -1 | tee -a build.log
 ls susfs4ksu/kernel_patches/ | tee -a build.log
 ls susfs4ksu/kernel_patches/KernelSU/ | tee -a build.log
 
 echo "=== 3. Patch SUSFS 4.9 ===" | tee -a build.log
-# Cari patch 4.9 yang ada, jangan maksa nama file
-ls susfs4ksu/kernel_patches/*4.9* 2>&1 | tee -a build.log || true
-patch -p1 --forward --verbose < susfs4ksu/kernel_patches/50_add_susfs_in_kernel-4.9.patch 2>&1 | tee -a build.log || echo "Patch SUSFS kernel 4.9 GAGAL, coba patch lain" | tee -a build.log
-patch -p1 --forward --verbose < susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch 2>&1 | tee -a build.log || echo "Patch SUSFS KSU GAGAL" | tee -a build.log
+patch -p1 --forward < susfs4ksu/kernel_patches/50_add_susfs_in_kernel-4.9.patch 2>&1 | tee -a build.log || echo "Patch SUSFS kernel GAGAL" | tee -a build.log
+patch -p1 --forward < susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch 2>&1 | tee -a build.log || echo "Patch SUSFS KSU GAGAL" | tee -a build.log
 sed -i '/MODULE_IMPORT_NS/d' drivers/kernelsu/kernel/ksu.c || true
 sed -i '/MODULE_IMPORT_NS/d' drivers/kernelsu/kernel/*.c drivers/kernelsu/kernel/*.h 2>/dev/null || true
-echo "Patch MODULE_IMPORT_NS OK" | tee -a build.log
 
-echo "=== 3b. Cari mdss_fb.c beneran ===" | tee -a build.log
+echo "=== 3b. Patch MDSS - cari pola beneran ===" | tee -a build.log
 find . -name "mdss_fb.c" 2>/dev/null | tee -a build.log
 python3 <<'PYEOF' 2>&1 | tee -a build.log
-import pathlib, glob
+import pathlib, glob, re
 files = glob.glob("drivers/video/**/mdss_fb.c", recursive=True)
-print(f"Ketemu {len(files)} file mdss_fb.c: {files}")
+print(f"Ketemu {len(files)} file: {files}")
 for f in files:
     p = pathlib.Path(f)
+    lines = p.read_text().splitlines()
+    print(f"--- Isi {f} yang ada kata blank/powerdown ---")
+    for i, l in enumerate(lines):
+        if "blank" in l.lower() or "BLANK" in l or "powerdown" in l.lower():
+            print(f"{i+1}: {l.strip()[:200]}")
     t = p.read_text()
     if "RIVENMAX_FIX_BACKLIGHT" in t:
         print("Patch MDSS udah ada")
         continue
-    old = "mdss_fb_blank_sub(FB_BLANK_POWERDOWN, mfd, op_enable);"
-    if old in t:
-        t = t.replace(old, "/* RIVENMAX_FIX_BACKLIGHT */\n\tmdss_fb_blank_sub(FB_BLANK_POWERDOWN, mfd, op_enable);")
+    # Patch generik: cari baris mdss_fb_blank_sub yang ada POWERDOWN, apapun argumennya
+    m = re.search(r".*mdss_fb_blank_sub\(FB_BLANK_POWERDOWN.*", t)
+    if m:
+        old = m.group(0)
+        new = "/* RIVENMAX_FIX_BACKLIGHT */\n\t" + old
+        t = t.replace(old, new)
         p.write_text(t)
-        print("Patch MDSS OK")
+        print(f"Patch MDSS OK di: {old.strip()[:150]}")
     else:
-        print(f"Pola tidak ketemu di {f}")
+        print("Pola mdss_fb_blank_sub POWERDOWN tidak ketemu, cek print di atas")
 PYEOF
 
 echo "=== 4. Enable KSU + SUSFS ===" | tee -a build.log
 make O=out ARCH=arm64 $DEFCONFIG
-scripts/config --file out/.config -e CONFIG_KSU || true
-scripts/config --file out/.config -e CONFIG_KSU_SUSFS || true
-scripts/config --file out/.config -e CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT || true
-scripts/config --file out/.config -e CONFIG_KSU_SUSFS_SUS_PATH || true
-scripts/config --file out/.config -e CONFIG_KSU_SUSFS_SUS_MOUNT || true
-scripts/config --file out/.config -e CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT || true
-scripts/config --file out/.config -e CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT || true
-scripts/config --file out/.config -e CONFIG_KSU_SUSFS_SUS_KSTAT || true
-scripts/config --file out/.config -e CONFIG_KSU_SUSFS_TRY_UMOUNT || true
+scripts/config --file out/.config -e CONFIG_KSU
+scripts/config --file out/.config -e CONFIG_KSU_SUSFS
+scripts/config --file out/.config -e CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT
+scripts/config --file out/.config -e CONFIG_KSU_SUSFS_SUS_PATH
+scripts/config --file out/.config -e CONFIG_KSU_SUSFS_SUS_MOUNT
+scripts/config --file out/.config -e CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT
+scripts/config --file out/.config -e CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT
+scripts/config --file out/.config -e CONFIG_KSU_SUSFS_SUS_KSTAT
+scripts/config --file out/.config -e CONFIG_KSU_SUSFS_TRY_UMOUNT
 make O=out ARCH=arm64 olddefconfig
 echo "--- CEK SUSFS DI CONFIG ---" | tee -a build.log
-grep CONFIG_KSU_SUSFS out/.config | tee -a build.log || echo "CONFIG_KSU_SUSFS TIDAK ADA" | tee -a build.log
+grep CONFIG_KSU out/.config | tee -a build.log || echo "CONFIG_KSU TIDAK ADA SAMA SEKALI" | tee -a build.log
 
 echo "=== 5. Build ===" | tee -a build.log
 make -j$(nproc --all) O=out ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- CLANG_TRIPLE=aarch64-linux-gnu- 2>&1 | tee -a build.log
