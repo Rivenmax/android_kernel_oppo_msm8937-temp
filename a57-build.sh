@@ -64,7 +64,6 @@ if "susfs" not in t.lower():
     print("FIX fs/Makefile OK")
 else:
     print("fs/Makefile udah ada susfs")
-# --- FIX fs.h untuk 2 struct ---
 p = pathlib.Path("include/linux/fs.h")
 t = p.read_text()
 t2 = re.sub(r"\n\s*u64 android_kabi_reserved[123];", "", t)
@@ -81,7 +80,6 @@ else:
     print("fs.h udah ada susfs include")
     p.write_text(t)
     t = p.read_text()
-# Tempel ke struct super_block DAN struct inode
 for struct_name in ["struct super_block {", "struct inode {"]:
     m = re.search(rf"{re.escape(struct_name)}.*?^}};", t, re.DOTALL | re.MULTILINE)
     if m and "android_kabi_reserved1" not in m.group(0):
@@ -92,6 +90,25 @@ for struct_name in ["struct super_block {", "struct inode {"]:
     else:
         print(f"FIX fs.h GAGAL - {struct_name} tidak ketemu")
 p.write_text(t)
+# --- FIX BARU Build 45: core_hook.h path ---
+# Cek di mana core_hook.h beneran ada
+for cand in ["drivers/kernelsu/kernel/core_hook.h", "drivers/kernelsu/core_hook.h"]:
+    print(f"Cek {cand}: ada={os.path.exists(cand)}")
+# Benerin include di fs/susfs.c + include/linux/susfs.h
+for f in ["fs/susfs.c", "include/linux/susfs.h", "fs/sus_su.c"]:
+    pp = pathlib.Path(f)
+    if pp.exists():
+        tt = pp.read_text()
+        if "drivers/kernelsu/core_hook.h" in tt:
+            tt = tt.replace("drivers/kernelsu/core_hook.h", "drivers/kernelsu/kernel/core_hook.h")
+            pp.write_text(tt)
+            print(f"FIX {f} OK - core_hook.h path dibenerin ke kernel/")
+        else:
+            print(f"{f}: core_hook.h path udah bener / nggak ada")
+# Bikin copy cadangan biar 2-2nya ada
+if os.path.exists("drivers/kernelsu/kernel/core_hook.h") and not os.path.exists("drivers/kernelsu/core_hook.h"):
+    shutil.copy("drivers/kernelsu/kernel/core_hook.h", "drivers/kernelsu/core_hook.h")
+    print("FIX core_hook.h OK - di-copy ke drivers/kernelsu/ juga")
 # Kconfig SUSFS
 p = pathlib.Path("drivers/kernelsu/Kconfig")
 t = p.read_text() if p.exists() else ""
