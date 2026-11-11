@@ -4,6 +4,12 @@ export KERNEL_DIR=$PWD
 export ARCH=arm64
 export SUBARCH=arm64
 DEFCONFIG="lineageos_A57_defconfig"
+#!/bin/bash
+set -e
+export KERNEL_DIR=$PWD
+export ARCH=arm64
+export SUBARCH=arm64
+DEFCONFIG="lineageos_A57_defconfig"
 export PATH="$HOME/proton-clang/bin:$PATH"
 export CLANG_TRIPLE=aarch64-linux-gnu-
 export CROSS_COMPILE=aarch64-linux-gnu-
@@ -35,10 +41,9 @@ patch -p1 --forward --fuzz=5 < susfs4ksu/kernel_patches/KernelSU/10_enable_susfs
 sed -i '/MODULE_IMPORT_NS/d' drivers/kernelsu/kernel/ksu.c || true
 sed -i '/MODULE_IMPORT_NS/d' drivers/kernelsu/kernel/*.c drivers/kernelsu/kernel/*.h 2>/dev/null || true
 
-echo "=== 3c. FIX SUSFS MANUAL - FIX CRASH ===" | tee -a build.log
+echo "=== 3c. FIX SUSFS MANUAL ===" | tee -a build.log
 python3 <<'PYEOF' 2>&1 | tee -a build.log
-import pathlib, shutil, glob, os
-# FIX CRASH: cek dirname dulu, jangan makedirs("") 
+import pathlib, shutil, glob, os, re
 for src in glob.glob("susfs4ksu/kernel_patches/**/*", recursive=True):
     if os.path.isfile(src):
         dst = src.replace("susfs4ksu/kernel_patches/", "")
@@ -49,16 +54,12 @@ for src in glob.glob("susfs4ksu/kernel_patches/**/*", recursive=True):
             shutil.copy(src, dst)
             print(f"Copy manual: {src} -> {dst}")
 print(f"kernel/susfs ada? {os.path.exists('kernel/susfs')}")
-if os.path.exists('kernel/susfs'):
-    print(f"Isi kernel/susfs: {os.listdir('kernel/susfs')}")
 p = pathlib.Path("kernel/Makefile")
 t = p.read_text()
 if "susfs" in t.lower():
     lines = [l for l in t.splitlines() if "susfs" not in l.lower()]
     p.write_text("\n".join(lines) + "\n")
-    print("FIX kernel/Makefile OK - baris susfs dihapus")
-else:
-    print("kernel/Makefile udah bersih")
+    print("FIX kernel/Makefile OK")
 if os.path.exists('kernel/susfs/Makefile'):
     p.write_text(p.read_text() + "\nobj-$(CONFIG_KSU_SUSFS) += susfs/\n")
     print("FIX kernel/Makefile OK - susfs ditambah lagi")
@@ -70,18 +71,40 @@ if "susfs" not in t.lower():
     print("FIX fs/Makefile OK")
 else:
     print("fs/Makefile udah ada susfs")
+# --- FIX fs.h yang salah tempat di Build 41 ---
 p = pathlib.Path("include/linux/fs.h")
 t = p.read_text()
+# 1. Hapus semua android_kabi_reserved yang nempel salah tempat (yang jadi variabel nganggur)
+t2 = re.sub(r"\n\s*u64 android_kabi_reserved[123];", "", t)
+if t2 != t:
+    print(f"FIX fs.h - hapus {t.count('android_kabi_reserved') - t2.count('android_kabi_reserved')} baris android_kabi_reserved yang salah tempat")
+    t = t2
+# 2. Pastiin susfs.h include ada
 if "susfs" not in t.lower():
     if "#include <linux/dcache.h>" in t:
         t = t.replace("#include <linux/dcache.h>", "#include <linux/dcache.h>\n#ifdef CONFIG_KSU_SUSFS\n#include <linux/susfs.h>\n#endif")
-        print("FIX fs.h OK")
-    else:
-        t = t.replace("#endif", "#ifdef CONFIG_KSU_SUSFS\n#include <linux/susfs.h>\n#endif\n#endif", 1)
-        print("FIX fs.h OK - fallback")
+        print("FIX fs.h OK - include susfs.h")
     p.write_text(t)
+    t = p.read_text()
 else:
-    print("fs.h udah ada susfs")
+    print("fs.h udah ada susfs include")
+    p.write_text(t)
+    t = p.read_text()
+# 3. Tempel yang bener di dalam struct super_block
+if "struct super_block {" in t:
+    # cek udah ada belum di dalam struct
+    m = re.search(r"struct super_block \{.*?^};", t, re.DOTALL | re.MULTILINE)
+    if m and "android_kabi_reserved1" not in m.group(0):
+        t = t.replace("struct super_block {", "struct super_block {\n#ifdef CONFIG_KSU_SUSFS\n\tu64 android_kabi_reserved1;\n\tu64 android_kabi_reserved2;\n\tu64 android_kabi_reserved3;\n#endif", 1)
+        print("FIX fs.h OK - android_kabi_reserved ditempel di dalam struct super_block")
+        p.write_text(t)
+    elif m:
+        print("FIX fs.h OK - struct super_block udah ada android_kabi_reserved")
+    else:
+        print("FIX fs.h GAGAL - struct super_block tidak ketemu pola };")
+else:
+    print("FIX fs.h GAGAL - struct super_block { tidak ketemu")
+# Kconfig SUSFS
 p = pathlib.Path("drivers/kernelsu/Kconfig")
 t = p.read_text() if p.exists() else ""
 if "KSU_SUSFS" not in t:
@@ -134,8 +157,6 @@ for kf in ["kernel/Kconfig", "Kconfig"]:
             print(f"FIX {kf} OK - source KSU ditambah")
         else:
             print(f"{kf} udah ada source KSU")
-    else:
-        print(f"{kf} tidak ada")
 PYEOF
 
 echo "=== 3b. Patch MDSS ===" | tee -a build.log
