@@ -90,11 +90,6 @@ for struct_name in ["struct super_block {", "struct inode {"]:
     else:
         print(f"FIX fs.h GAGAL - {struct_name} tidak ketemu")
 p.write_text(t)
-# --- FIX BARU Build 45: core_hook.h path ---
-# Cek di mana core_hook.h beneran ada
-for cand in ["drivers/kernelsu/kernel/core_hook.h", "drivers/kernelsu/core_hook.h"]:
-    print(f"Cek {cand}: ada={os.path.exists(cand)}")
-# Benerin include di fs/susfs.c + include/linux/susfs.h
 for f in ["fs/susfs.c", "include/linux/susfs.h", "fs/sus_su.c"]:
     pp = pathlib.Path(f)
     if pp.exists():
@@ -102,14 +97,13 @@ for f in ["fs/susfs.c", "include/linux/susfs.h", "fs/sus_su.c"]:
         if "drivers/kernelsu/core_hook.h" in tt:
             tt = tt.replace("drivers/kernelsu/core_hook.h", "drivers/kernelsu/kernel/core_hook.h")
             pp.write_text(tt)
-            print(f"FIX {f} OK - core_hook.h path dibenerin ke kernel/")
+            print(f"FIX {f} OK - core_hook.h path dibenerin")
         else:
-            print(f"{f}: core_hook.h path udah bener / nggak ada")
-# Bikin copy cadangan biar 2-2nya ada
+            print(f"{f}: core_hook.h path udah bener")
 if os.path.exists("drivers/kernelsu/kernel/core_hook.h") and not os.path.exists("drivers/kernelsu/core_hook.h"):
     shutil.copy("drivers/kernelsu/kernel/core_hook.h", "drivers/kernelsu/core_hook.h")
-    print("FIX core_hook.h OK - di-copy ke drivers/kernelsu/ juga")
-# Kconfig SUSFS
+    print("FIX core_hook.h OK - di-copy juga")
+# --- FIX BARU Build 46: TRY_UMOUNT default n, soalnya kernel 4.9 nggak ada try_umount ---
 p = pathlib.Path("drivers/kernelsu/Kconfig")
 t = p.read_text() if p.exists() else ""
 if "KSU_SUSFS" not in t:
@@ -146,12 +140,19 @@ config KSU_SUSFS_SUS_KSTAT
 config KSU_SUSFS_TRY_UMOUNT
     bool "SUSFS Try Umount"
     depends on KSU_SUSFS
-    default y
+    default n
 """
     p.write_text(t + susfs_kconfig)
-    print("FIX drivers/kernelsu/Kconfig OK")
+    print("FIX drivers/kernelsu/Kconfig OK - TRY_UMOUNT default n")
 else:
-    print("drivers/kernelsu/Kconfig udah ada SUSFS")
+    # kalau udah ada, ubah default TRY_UMOUNT jadi n
+    if "KSU_SUSFS_TRY_UMOUNT" in t:
+        # cari blok TRY_UMOUNT dan ganti default y jadi n
+        t = re.sub(r"(config KSU_SUSFS_TRY_UMOUNT.*?default\s+)y", r"\1n", t, flags=re.DOTALL)
+        p.write_text(t)
+        print("FIX drivers/kernelsu/Kconfig OK - TRY_UMOUNT diubah jadi default n")
+    else:
+        print("drivers/kernelsu/Kconfig udah ada SUSFS")
 for kf in ["kernel/Kconfig", "Kconfig"]:
     pp = pathlib.Path(kf)
     if pp.exists():
@@ -187,7 +188,7 @@ for f in files:
         print("Pola MDSS tidak ketemu")
 PYEOF
 
-echo "=== 4. Enable KSU + SUSFS ===" | tee -a build.log
+echo "=== 4. Enable KSU + SUSFS - TRY_UMOUNT DIMATIIN ===" | tee -a build.log
 make O=out ARCH=arm64 $DEFCONFIG
 scripts/config --file out/.config -e CONFIG_KSU
 scripts/config --file out/.config -e CONFIG_KSU_SUSFS
@@ -197,7 +198,7 @@ scripts/config --file out/.config -e CONFIG_KSU_SUSFS_SUS_MOUNT
 scripts/config --file out/.config -e CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT
 scripts/config --file out/.config -e CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT
 scripts/config --file out/.config -e CONFIG_KSU_SUSFS_SUS_KSTAT
-scripts/config --file out/.config -e CONFIG_KSU_SUSFS_TRY_UMOUNT
+scripts/config --file out/.config -d CONFIG_KSU_SUSFS_TRY_UMOUNT
 make O=out ARCH=arm64 olddefconfig
 echo "--- CEK SUSFS DI CONFIG ---" | tee -a build.log
 grep CONFIG_KSU out/.config | tee -a build.log || echo "CONFIG_KSU TIDAK ADA" | tee -a build.log
