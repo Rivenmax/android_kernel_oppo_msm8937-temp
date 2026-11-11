@@ -35,36 +35,33 @@ patch -p1 --forward --fuzz=5 < susfs4ksu/kernel_patches/KernelSU/10_enable_susfs
 sed -i '/MODULE_IMPORT_NS/d' drivers/kernelsu/kernel/ksu.c || true
 sed -i '/MODULE_IMPORT_NS/d' drivers/kernelsu/kernel/*.c drivers/kernelsu/kernel/*.h 2>/dev/null || true
 
-echo "=== 3c. FIX SUSFS MANUAL - yang bener ===" | tee -a build.log
+echo "=== 3c. FIX SUSFS MANUAL - FIX CRASH ===" | tee -a build.log
 python3 <<'PYEOF' 2>&1 | tee -a build.log
 import pathlib, shutil, glob, os
-# Copy semua file susfs yang ada di patch, ke tempat benernya
+# FIX CRASH: cek dirname dulu, jangan makedirs("") 
 for src in glob.glob("susfs4ksu/kernel_patches/**/*", recursive=True):
     if os.path.isfile(src):
         dst = src.replace("susfs4ksu/kernel_patches/", "")
         if not os.path.exists(dst):
-            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            d = os.path.dirname(dst)
+            if d != "":
+                os.makedirs(d, exist_ok=True)
             shutil.copy(src, dst)
             print(f"Copy manual: {src} -> {dst}")
-# Cek kernel/susfs ada nggak
 print(f"kernel/susfs ada? {os.path.exists('kernel/susfs')}")
 if os.path.exists('kernel/susfs'):
     print(f"Isi kernel/susfs: {os.listdir('kernel/susfs')}")
-# FIX kernel/Makefile: JANGAN nambah susfs/ kalau folder-nya nggak ada
 p = pathlib.Path("kernel/Makefile")
 t = p.read_text()
 if "susfs" in t.lower():
-    # hapus baris susfs yang bikin error Build 39
     lines = [l for l in t.splitlines() if "susfs" not in l.lower()]
     p.write_text("\n".join(lines) + "\n")
-    print("FIX kernel/Makefile OK - baris susfs yang bikin error dihapus")
+    print("FIX kernel/Makefile OK - baris susfs dihapus")
 else:
-    print("kernel/Makefile udah bersih, nggak ada susfs")
-# Kalau kernel/susfs beneran ada, baru tambahin lagi
+    print("kernel/Makefile udah bersih")
 if os.path.exists('kernel/susfs/Makefile'):
     p.write_text(p.read_text() + "\nobj-$(CONFIG_KSU_SUSFS) += susfs/\n")
-    print("FIX kernel/Makefile OK - susfs ditambah lagi soalnya folder-nya ada")
-# fs/Makefile
+    print("FIX kernel/Makefile OK - susfs ditambah lagi")
 p = pathlib.Path("fs/Makefile")
 t = p.read_text()
 if "susfs" not in t.lower():
@@ -73,7 +70,6 @@ if "susfs" not in t.lower():
     print("FIX fs/Makefile OK")
 else:
     print("fs/Makefile udah ada susfs")
-# fs.h
 p = pathlib.Path("include/linux/fs.h")
 t = p.read_text()
 if "susfs" not in t.lower():
@@ -86,7 +82,6 @@ if "susfs" not in t.lower():
     p.write_text(t)
 else:
     print("fs.h udah ada susfs")
-# Kconfig SUSFS
 p = pathlib.Path("drivers/kernelsu/Kconfig")
 t = p.read_text() if p.exists() else ""
 if "KSU_SUSFS" not in t:
