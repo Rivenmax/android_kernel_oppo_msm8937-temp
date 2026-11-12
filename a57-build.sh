@@ -190,6 +190,18 @@ for f in glob.glob("drivers/video/**/mdss_fb.c", recursive=True):
         p.write_text(t)
         print(f"FIX MDSS BL_MIN OK di {f} - bl_level min 1 -> 0")
 PYEOF
+# TAMBAHAN BUILD 56 - DSI PANEL ONLY
+echo "=== TAMBAHAN DSI PANEL ===" | tee -a build.log
+python3 - << 'PYEOF' 2>&1 | tee -a build.log
+import pathlib, re
+p = pathlib.Path("drivers/video/fbdev/msm/mdss_dsi_panel.c")
+t = p.read_text()
+t = t.replace("bl_level = 1;", "bl_level = 0; // RIVENMAX_56")
+t = t.replace("max(bl_level, 1)", "max(bl_level, 0) // RIVENMAX_56")
+t = re.sub(r"if\s*\(\s*bl_level\s*==\s*0\s*\)\s*bl_level\s*=\s*1\s*;", "/* RIVENMAX_56 allow bl 0 */", t)
+p.write_text(t)
+print("FIX DSI PANEL OK")
+PYEOF
 
 echo "=== 4. Enable KSU + SUSFS ===" | tee -a build.log
 make O=out ARCH=arm64 $DEFCONFIG
