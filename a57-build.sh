@@ -27,15 +27,13 @@ fi
 
 # 3a. Patch SUSFS
 echo "=== 3a. Patch SUSFS ==="
-# SUSFS repo
 if [ ! -d susfs4ksu ]; then
-  git clone --depth=1 https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android4.9 susfs4ksu
+  git clone --depth=1 https://github.com/simonpunk/susfs4ksu.git susfs4ksu
 fi
 cp -r susfs4ksu/kernel_patches/fs/* fs/ 2>/dev/null || true
 cp -r susfs4ksu/kernel_patches/include/* include/ 2>/dev/null || true
 cp susfs4ksu/kernel_patches/50_add_susfs_in_gki-android4.9.patch . 2>/dev/null || true
 patch -p1 --forward < 50_add_susfs_in_gki-android4.9.patch 2>/dev/null || echo "SUSFS patch udah / skip"
-
 # 3b. Patch DSI PANEL Build 48 - INI YANG BARU, GANTI BUILD 47
 echo "=== 3b. Patch DSI PANEL Build 48 - bl 0 via DCS ==="
 python3 - << 'PY'
