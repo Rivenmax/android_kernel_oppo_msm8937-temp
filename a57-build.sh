@@ -45,14 +45,13 @@ echo "=== 3d. Setup KernelSU ==="
 if [ -f KernelSU/kernel/setup.sh ]; then
   bash KernelSU/kernel/setup.sh || true
 fi
-ls -l drivers/kernelsu || true
-ls drivers/kernelsu/kernel/Kconfig 2>/dev/null || echo "Kconfig belum ada di kernel/, benerin..."
-# BENERIN LAYOUT BUAT 4.9 - Kconfig harus ada di drivers/kernelsu/kernel/Kconfig
-if [ ! -f drivers/kernelsu/kernel/Kconfig ]; then
-  rm -f drivers/kernelsu
-  mkdir -p drivers/kernelsu/kernel
-  cp -r KernelSU/kernel/* drivers/kernelsu/kernel/
-  echo "FIX KSU LAYOUT OK"
+# BENERIN LAYOUT BUAT 4.9 - BUTUH 2 Kconfig
+rm -f drivers/kernelsu
+mkdir -p drivers/kernelsu/kernel
+cp -r KernelSU/kernel/* drivers/kernelsu/
+cp -r KernelSU/kernel/* drivers/kernelsu/kernel/
+ls -lh drivers/kernelsu/Kconfig drivers/kernelsu/kernel/Kconfig
+echo "FIX KSU LAYOUT OK - 2 Kconfig ada"
 fi
 ls -lh drivers/kernelsu/kernel/Kconfig
 
