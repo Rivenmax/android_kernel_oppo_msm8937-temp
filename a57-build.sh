@@ -20,21 +20,35 @@ if [ ! -d proton-clang ]; then
   git clone --depth=1 https://github.com/kdrag0n/proton-clang.git proton-clang
 fi
 
-# 3. KSU + SUSFS
+# 3. KSU
 if [ ! -d KernelSU ]; then
   git clone --depth=1 https://github.com/tiann/KernelSU.git KernelSU
 fi
 
-# 3a. Patch SUSFS
+# 3a. Patch SUSFS - FIX GITLAB TANPA -b
 echo "=== 3a. Patch SUSFS ==="
 if [ ! -d susfs4ksu ]; then
   git clone --depth=1 https://gitlab.com/simonpunk/susfs4ksu.git susfs4ksu
 fi
+ls susfs4ksu/kernel_patches/ || true
+find susfs4ksu -name "*.patch" | head -n 20 || true
 cp -r susfs4ksu/kernel_patches/fs/* fs/ 2>/dev/null || true
 cp -r susfs4ksu/kernel_patches/include/* include/ 2>/dev/null || true
-cp susfs4ksu/kernel_patches/50_add_susfs_in_gki-android4.9.patch . 2>/dev/null || true
-patch -p1 --forward < 50_add_susfs_in_gki-android4.9.patch 2>/dev/null || echo "SUSFS patch udah / skip"
-# 3b. Patch DSI PANEL Build 48 - INI YANG BARU, GANTI BUILD 47
+PATCH_FILE=$(find susfs4ksu -name "*susfs*.patch" | head -n 1)
+echo "PATCH_FILE=$PATCH_FILE"
+if [ -n "$PATCH_FILE" ]; then
+  patch -p1 --forward < "$PATCH_FILE" 2>/dev/null || echo "SUSFS patch udah / skip"
+fi
+
+# 3d. Setup KernelSU - INI YANG KEMARIN KELEWAT
+echo "=== 3d. Setup KernelSU ==="
+ls KernelSU/kernel/setup.sh || true
+if [ -f KernelSU/kernel/setup.sh ]; then
+  bash KernelSU/kernel/setup.sh
+fi
+ls -lh drivers/kernelsu/kernel/Kconfig || true
+
+# 3b. Patch DSI PANEL Build 48 - INI YANG BENERIN BACKLIGHT
 echo "=== 3b. Patch DSI PANEL Build 48 - bl 0 via DCS ==="
 python3 - << 'PY'
 import pathlib, re
@@ -52,7 +66,7 @@ sed -i 's/qcom,mdss-dsi-bl-min-level = <1>/qcom,mdss-dsi-bl-min-level = <0> \/\/
 sed -i 's/qcom,mdss-dsi-bl-min-level = <0x1>/qcom,mdss-dsi-bl-min-level = <0x0> \/\/ RIVENMAX_48/g' arch/arm/boot/dts/qcom/*.dtsi 2>/dev/null || true
 echo "FIX DTB BL_MIN OK"
 
-# 3c. MDSS FB tetap dipertahanin dari Build 47
+# 3c. MDSS FB tetap
 echo "=== 3c. Patch MDSS FB tetap ==="
 sed -i 's/bl_level = 1;/bl_level = 0; \/\/ RIVENMAX_FIX_48/g' drivers/video/fbdev/msm/mdss_fb.c 2>/dev/null || true
 echo "FIX MDSS FB OK"
@@ -64,7 +78,6 @@ make O=out ARCH=arm64 lineageos_A57_defconfig
 # 5. KSU + SUSFS config - SAMA KAYAK BUILD 46/47 YANG BOOT
 echo "=== 5. Config KSU SUSFS ==="
 scripts/config --file out/.config -e KSU -e KSU_SUSFS -e KSU_SUSFS_HAS_MAGIC_MOUNT -e KSU_SUSFS_SUS_PATH -e KSU_SUSFS_SUS_MOUNT -e KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT -e KSU_SUSFS_SUS_KSTAT -e KSU_SUSFS_TRY_UMOUNT 2>/dev/null || true
-# TRY_UMOUNT dimatiin lagi, biar nggak bootloop kayak Build 45
 scripts/config --file out/.config -d KSU_SUSFS_TRY_UMOUNT 2>/dev/null || true
 scripts/config --file out/.config -d KSU_SUSFS_SUS_MAP 2>/dev/null || true
 make O=out ARCH=arm64 olddefconfig
