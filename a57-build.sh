@@ -42,11 +42,19 @@ fi
 
 # 3d. Setup KernelSU - INI YANG KEMARIN KELEWAT
 echo "=== 3d. Setup KernelSU ==="
-ls KernelSU/kernel/setup.sh || true
 if [ -f KernelSU/kernel/setup.sh ]; then
-  bash KernelSU/kernel/setup.sh
+  bash KernelSU/kernel/setup.sh || true
 fi
-ls -lh drivers/kernelsu/kernel/Kconfig || true
+ls -l drivers/kernelsu || true
+ls drivers/kernelsu/kernel/Kconfig 2>/dev/null || echo "Kconfig belum ada di kernel/, benerin..."
+# BENERIN LAYOUT BUAT 4.9 - Kconfig harus ada di drivers/kernelsu/kernel/Kconfig
+if [ ! -f drivers/kernelsu/kernel/Kconfig ]; then
+  rm -f drivers/kernelsu
+  mkdir -p drivers/kernelsu/kernel
+  cp -r KernelSU/kernel/* drivers/kernelsu/kernel/
+  echo "FIX KSU LAYOUT OK"
+fi
+ls -lh drivers/kernelsu/kernel/Kconfig
 
 # 3b. Patch DSI PANEL Build 48 - INI YANG BENERIN BACKLIGHT
 echo "=== 3b. Patch DSI PANEL Build 48 - bl 0 via DCS ==="
