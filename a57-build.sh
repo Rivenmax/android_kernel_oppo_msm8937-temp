@@ -142,67 +142,6 @@ for kf in ["kernel/Kconfig", "Kconfig"]:
             pp.write_text(tt)
 PYEOF
 
-echo "=== 3b. Patch MDSS BENERAN - bl_level 0 ===" | tee -a build.log
-python3 <<'PYEOF' 2>&1 | tee -a build.log
-import pathlib, glob, re
-# 1. Fix mdss_fb.c - pas POWERDOWN, paksa bl_level = 0
-for f in glob.glob("drivers/video/**/mdss_fb.c", recursive=True):
-    p = pathlib.Path(f)
-    t = p.read_text()
-    if "RIVENMAX_FIX_BACKLIGHT_REAL" in t:
-        print(f"{f}: udah ada fix beneran")
-        continue
-    # Cari fungsi mdss_fb_blank_sub, tambahin bl_level = 0 sebelum return POWERDOWN
-    if "mdss_fb_blank_sub" in t:
-        # Sisipin set bl_level = 0 sebelum mdss_fb_blank_sub POWERDOWN dipanggil
-        # Cara aman: ganti baris ret = mdss_fb_blank_sub(FB_BLANK_POWERDOWN... dengan set bl_level dulu
-        old = "ret = mdss_fb_blank_sub(FB_BLANK_POWERDOWN"
-        if old in t:
-            new = "/* RIVENMAX_FIX_BACKLIGHT_REAL - paksa bl_level 0 pas blank */\n\tif (mfd) mfd->bl_level = 0;\n\t" + old
-            t = t.replace(old, new)
-            p.write_text(t)
-            print(f"FIX MDSS REAL OK di {f} - bl_level = 0 pas POWERDOWN")
-        else:
-            print(f"{f}: pola POWERDOWN tidak ketemu")
-    else:
-        print(f"{f}: mdss_fb_blank_sub tidak ketemu")
-# 2. Fix mdss_dsi_panel.c - bl_min dari 1 jadi 0, biar bisa ke 0
-for f in glob.glob("drivers/video/**/mdss_dsi_panel.c", recursive=True):
-    p = pathlib.Path(f)
-    t = p.read_text()
-    orig = t
-    # Cari bl_min = 1, ubah jadi 0
-    t = re.sub(r"bl_min\s*=\s*1", "bl_min = 0", t)
-    t = re.sub(r"\.bl_min\s*=\s*1", ".bl_min = 0", t)
-    if t != orig:
-        p.write_text(t)
-        print(f"FIX MDSS PANEL OK di {f} - bl_min 1 -> 0")
-    else:
-        print(f"{f}: bl_min tidak ketemu / udah 0")
-# 3. Fix mdss_fb.c - bl_level minimum check, kalau ada 'if (bl_level < 1) bl_level = 1' ubah jadi 0
-for f in glob.glob("drivers/video/**/mdss_fb.c", recursive=True):
-    p = pathlib.Path(f)
-    t = p.read_text()
-    orig = t
-    t = re.sub(r"if\s*\(\s*bl_level\s*<\s*1\s*\)\s*bl_level\s*=\s*1", "if (bl_level < 0) bl_level = 0", t)
-    t = re.sub(r"bl_level\s*=\s*max\(bl_level,\s*1\)", "bl_level = max(bl_level, 0)", t)
-    if t != orig:
-        p.write_text(t)
-        print(f"FIX MDSS BL_MIN OK di {f} - bl_level min 1 -> 0")
-PYEOF
-# TAMBAHAN BUILD 56 - DSI PANEL ONLY
-echo "=== TAMBAHAN DSI PANEL ===" | tee -a build.log
-python3 - << 'PYEOF' 2>&1 | tee -a build.log
-import pathlib, re
-p = pathlib.Path("drivers/video/fbdev/msm/mdss_dsi_panel.c")
-t = p.read_text()
-t = t.replace("bl_level = 1;", "bl_level = 0; // RIVENMAX_56")
-t = t.replace("max(bl_level, 1)", "max(bl_level, 0) // RIVENMAX_56")
-t = re.sub(r"if\s*\(\s*bl_level\s*==\s*0\s*\)\s*bl_level\s*=\s*1\s*;", "/* RIVENMAX_56 allow bl 0 */", t)
-p.write_text(t)
-print("FIX DSI PANEL OK")
-PYEOF
-
 echo "=== 4. Enable KSU + SUSFS ===" | tee -a build.log
 make O=out ARCH=arm64 $DEFCONFIG
 scripts/config --file out/.config -e CONFIG_KSU
