@@ -1,0 +1,40 @@
+name: Build Kernel 4.9 Non-GKI + KernelSU v0.9.5 buat A57 - LOS 22.1
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: lineage-22.1
+          fetch-depth: 1
+
+      - name: Install deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git python3 bc bison flex libssl-dev libelf-dev build-essential curl wget unzip zip clang lld llvm
+
+      - name: Clone Proton Clang
+        run: |
+          git clone --depth 1 https://github.com/kdrag0n/proton-clang.git $HOME/proton-clang
+
+      - name: Build Kernel
+        run: |
+          chmod +x a57-build.sh
+          bash a57-build.sh
+
+      - name: Upload Image-gz-dtb
+        uses: actions/upload-artifact@v4
+        with:
+          name: Image-gz-dtb
+          path: Image.gz-dtb
+
+      - name: Upload build-log
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
