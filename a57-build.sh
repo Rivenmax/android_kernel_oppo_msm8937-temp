@@ -143,8 +143,6 @@ for kf in ["kernel/Kconfig", "Kconfig"]:
 PYEOF
 
 echo "=== 4. Enable KSU + SUSFS ===" | tee -a build.log
-grep -q "drivers/kernelsu/Kconfig" arch/arm64/Kconfig || echo 'source "drivers/kernelsu/Kconfig"' >> arch/arm64/Kconfig
-grep -q "obj.*kernelsu" drivers/Makefile || echo 'obj-$(CONFIG_KSU) += kernelsu/' >> drivers/Makefile
 make O=out ARCH=arm64 $DEFCONFIG
 scripts/config --file out/.config -e CONFIG_KSU
 scripts/config --file out/.config -e CONFIG_KSU_SUSFS
@@ -157,7 +155,9 @@ scripts/config --file out/.config -e CONFIG_KSU_SUSFS_SUS_KSTAT
 scripts/config --file out/.config -d CONFIG_KSU_SUSFS_TRY_UMOUNT
 make O=out ARCH=arm64 olddefconfig
 echo "--- CEK SUSFS DI CONFIG ---" | tee -a build.log
-grep "CONFIG_KSU" out/.config | tee -a build.log
+grep CONFIG_KSU out/.config | tee -a build.log
+grep -c "CONFIG_KSU_SUSFS=y" out/.config | tee -a build.log
+
 echo "=== 5. Build ===" | tee -a build.log
 make -j$(nproc --all) O=out ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- CLANG_TRIPLE=aarch64-linux-gnu- 2>&1 | tee -a build.log
 ls -lh out/arch/arm64/boot/Image.gz-dtb | tee -a build.log
