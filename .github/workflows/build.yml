@@ -1,40 +1,51 @@
-name: Build Kernel 4.9 Non-GKI + KernelSU v0.9.5 buat A57 - LOS 22.1
+name: Build Kernel 4.9 Non-GKI + KernelSU v0.9.5 buat A57 - LOS 22.1 - RIVENMAX
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: lineage-22.1
           fetch-depth: 1
 
-      - name: Install deps
+      - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y git python3 bc bison flex libssl-dev libelf-dev build-essential curl wget unzip zip clang lld llvm
+          sudo apt-get install -y bc bison flex libssl-dev libelf-dev make gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
 
-      - name: Clone Proton Clang
+      - name: Setup Proton Clang Toolchain
         run: |
-          git clone --depth 1 https://github.com/kdrag0n/proton-clang.git $HOME/proton-clang
+          git clone --depth=1 https://github.com/kdrag0n/proton-clang.git $HOME/proton-clang
+          ls $HOME/proton-clang/bin/ | head -20
+          echo "PROTON_CLANG=$HOME/proton-clang" >> $GITHUB_ENV
+          echo "$HOME/proton-clang/bin" >> $GITHUB_PATH
 
-      - name: Build Kernel
+      - name: Build via a57-build.sh
         run: |
           chmod +x a57-build.sh
           bash a57-build.sh
 
-      - name: Upload Image-gz-dtb
-        uses: actions/upload-artifact@v4
-        with:
-          name: Image-gz-dtb
-          path: Image.gz-dtb
-
-      - name: Upload build-log
+      - name: Upload Log
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: build-log
           path: build.log
+
+      - name: Upload Boot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Image-gz-dtb
+          path: |
+            out/arch/arm64/boot/Image.gz-dtb
+            Image.gz-dtb
+            build.log
